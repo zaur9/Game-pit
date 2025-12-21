@@ -292,82 +292,132 @@ export class FrostClickGameLogic {
     this.game.lastClickTime = now;
 
     // Получаем координаты клика относительно Canvas
-    const rect = this.game.canvas.getBoundingClientRect();
-    const scaleX = this.game.canvas.width / rect.width;
-    const scaleY = this.game.canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    // Оптимизация: кэшируем getBoundingClientRect (дорогая операция)
+    if (!this._canvasRect || now - this._lastRectUpdate > 1000) {
+      this._canvasRect = this.game.canvas.getBoundingClientRect();
+      this._scaleX = this.game.canvas.width / this._canvasRect.width;
+      this._scaleY = this.game.canvas.height / this._canvasRect.height;
+      this._lastRectUpdate = now;
+    }
+    
+    const x = (e.clientX - this._canvasRect.left) * this._scaleX;
+    const y = (e.clientY - this._canvasRect.top) * this._scaleY;
 
-    // Оптимизация: используем in-place сортировку без создания нового массива
-    // Сортируем объекты по Y (сверху вниз) для проверки попадания
+    // Оптимизация: для малого количества объектов не сортируем
     const objects = this.game.objects;
-    if (objects.length === 0) return;
+    const objCount = objects.length;
+    if (objCount === 0) return;
     
-    // Создаем временный массив с индексами только один раз
-    const objectsWithIndex = objects.map((obj, index) => ({ obj, index }));
-    objectsWithIndex.sort((a, b) => b.obj.y - a.obj.y); // Сверху вниз
-    
-    // Используем отсортированный массив
-    for (const { obj, index: i } of objectsWithIndex) {
-      // Используем реальный размер спрайта для hitbox
-      const halfSize = this.game.SPRITE_SIZE / 2;
-      const hitPadding = this.game.HIT_PADDING;
+    // Оптимизация: для большого количества объектов сортируем, для малого - обратный цикл
+    if (objCount > 20) {
+      // Для большого количества - создаем отсортированный массив
+      if (!this._clickObjectsCache || this._clickObjectsCache.length !== objCount) {
+        this._clickObjectsCache = new Array(objCount);
+      }
+      for (let i = 0; i < objCount; i++) {
+        this._clickObjectsCache[i] = { obj: objects[i], index: i };
+      }
+      this._clickObjectsCache.sort((a, b) => b.obj.y - a.obj.y);
       
-      // Прямоугольная проверка: padding ТОЛЬКО сверху
-      // По бокам и снизу - строго в пределах объекта (БЕЗ padding)
-      // Сверху - клик работает за пределами объекта (С padding)
-      const leftBound = obj.x - halfSize; // БЕЗ padding слева - строго в пределах
-      const rightBound = obj.x + halfSize; // БЕЗ padding справа - строго в пределах
-      const bottomBound = obj.y + halfSize; // БЕЗ padding снизу - строго в пределах
-      const topBound = obj.y - halfSize - hitPadding; // С padding сверху - клик работает за пределами
-      
-      // Проверка попадания в прямоугольную область
-      // x должен быть строго между leftBound и rightBound (без padding по бокам)
-      // y должен быть между topBound (с padding сверху) и bottomBound (без padding снизу)
-      if (x >= leftBound && x <= rightBound && y >= topBound && y <= bottomBound) {
-        const type = obj.type;
+      for (let i = 0; i < objCount; i++) {
+        const { obj, index: idx } = this._clickObjectsCache[i];
+        const halfSize = this.game.SPRITE_SIZE / 2;
+        const hitPadding = this.game.HIT_PADDING;
+        const objX = obj.x;
+        const objY = obj.y;
+        
+        // Оптимизация: быстрая проверка границ
+        const dx = x - objX;
+        const dy = y - objY;
+        
+        if (Math.abs(dx) <= halfSize && dy >= -halfSize - hitPadding && dy <= halfSize) {
+          const type = obj.type;
 
-        // Удаление объекта (используем оригинальный индекс)
-        const originalIndex = this.game.objects.indexOf(obj);
-        if (originalIndex !== -1) {
-          this.game.objects.splice(originalIndex, 1);
-        }
-        this.game.needsRedraw = true;
+          // Удаление объекта (используем индекс из отсортированного массива)
+          this.game.objects.splice(idx, 1);
+          this.game.needsRedraw = true;
 
-        // Flash эффект
-        this.game.createFlash(obj.x, obj.y);
+          // Flash эффект
+          this.game.createFlash(objX, objY);
 
-        // Freeze bonus
-        if (this.game.isFrozen) {
-          if (type === 'snow') this.game.addScore(1);
-          else if (type === 'bomb') this.game.addScore(3);
-          else if (type === 'gift') this.game.addScore(5);
-          else if (type === 'ice') this.game.addScore(2);
-          else if (type === 'somnia') this.game.addScore(100);
+          // Freeze bonus
+          if (this.game.isFrozen) {
+            if (type === 'snow') this.game.addScore(1);
+            else if (type === 'bomb') this.game.addScore(3);
+            else if (type === 'gift') this.game.addScore(5);
+            else if (type === 'ice') this.game.addScore(2);
+            else if (type === 'somnia') this.game.addScore(100);
+            return;
+          }
+
+          if (type === 'bomb') {
+            // Создаем эффект взрыва перед завершением игры
+            this.game.createExplosion(objX, objY);
+            // Небольшая задержка для показа взрыва
+            setTimeout(() => {
+              this.endGame(false);
+            }, 300);
+            return;
+          }
+
+          if (type === 'ice') {
+            this.activateFreeze();
+            this.game.addScore(2);
+          } else if (type === 'somnia') {
+            this.game.addScore(100);
+          } else if (type === 'gift') {
+            this.game.addScore(5);
+          } else {
+            this.game.addScore(1);
+          }
           return;
         }
+      }
+    } else {
+      // Для малого количества объектов - обратный цикл без сортировки (быстрее)
+      for (let i = objCount - 1; i >= 0; i--) {
+        const obj = objects[i];
+        const halfSize = this.game.SPRITE_SIZE / 2;
+        const hitPadding = this.game.HIT_PADDING;
+        const objX = obj.x;
+        const objY = obj.y;
+        
+        const dx = x - objX;
+        const dy = y - objY;
+        
+        if (Math.abs(dx) <= halfSize && dy >= -halfSize - hitPadding && dy <= halfSize) {
+          const type = obj.type;
+          this.game.objects.splice(i, 1);
+          this.game.needsRedraw = true;
+          this.game.createFlash(objX, objY);
+          
+          if (this.game.isFrozen) {
+            if (type === 'snow') this.game.addScore(1);
+            else if (type === 'bomb') this.game.addScore(3);
+            else if (type === 'gift') this.game.addScore(5);
+            else if (type === 'ice') this.game.addScore(2);
+            else if (type === 'somnia') this.game.addScore(100);
+            return;
+          }
 
-        if (type === 'bomb') {
-          // Создаем эффект взрыва перед завершением игры
-          this.game.createExplosion(obj.x, obj.y);
-          // Небольшая задержка для показа взрыва
-          setTimeout(() => {
-            this.endGame(false);
-          }, 300);
+          if (type === 'bomb') {
+            this.game.createExplosion(objX, objY);
+            setTimeout(() => this.endGame(false), 300);
+            return;
+          }
+
+          if (type === 'ice') {
+            this.activateFreeze();
+            this.game.addScore(2);
+          } else if (type === 'somnia') {
+            this.game.addScore(100);
+          } else if (type === 'gift') {
+            this.game.addScore(5);
+          } else {
+            this.game.addScore(1);
+          }
           return;
         }
-
-        if (type === 'ice') {
-          this.activateFreeze();
-          this.game.addScore(2);
-        } else if (type === 'somnia') {
-          this.game.addScore(100);
-        } else if (type === 'gift') {
-          this.game.addScore(5);
-        } else {
-          this.game.addScore(1);
-        }
-        return;
       }
     }
   }
