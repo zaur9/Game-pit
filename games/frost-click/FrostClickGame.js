@@ -51,7 +51,8 @@ export class FrostClickGame extends GameBase {
 
     // Hitbox размеры
     this.OBJECT_SIZE = 28; // Уменьшено с 40 до 28
-    this.HIT_PADDING = 6;
+    this.SPRITE_SIZE = this.OBJECT_SIZE * 2; // Реальный размер спрайта (56px)
+    this.HIT_PADDING = 10; // Увеличено для лучшей точности клика
 
     // DOM элементы для UI
     this.scoreEl = null;
@@ -210,7 +211,7 @@ export class FrostClickGame extends GameBase {
         obj.y += obj.speed * deltaTime;
 
         // Удаление объектов за экраном
-        if (obj.y > window.innerHeight + this.OBJECT_SIZE) {
+        if (obj.y > window.innerHeight + this.SPRITE_SIZE) {
           this.objects.splice(i, 1);
           this.needsRedraw = true;
         }
