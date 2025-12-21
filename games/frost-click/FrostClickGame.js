@@ -205,43 +205,62 @@ export class FrostClickGame extends GameBase {
   }
 
   update(deltaTime) {
+    let needsRedraw = false;
+    
     // Обновление позиций объектов
     for (let i = this.objects.length - 1; i >= 0; i--) {
       const obj = this.objects[i];
 
       if (!this.isFrozen) {
+        const oldY = obj.y;
         obj.y += obj.speed * deltaTime;
+        
+        // Проверяем, изменилась ли позиция (для оптимизации рендеринга)
+        if (Math.abs(obj.y - oldY) > 0.1) {
+          needsRedraw = true;
+        }
 
         // Удаление объектов за экраном
         if (obj.y > window.innerHeight + this.SPRITE_SIZE) {
           this.objects.splice(i, 1);
-          this.needsRedraw = true;
+          needsRedraw = true;
         }
       }
     }
+    
+    this.needsRedraw = needsRedraw;
 
-    // Обновление flash эффектов
-    for (let i = this.flashEffects.length - 1; i >= 0; i--) {
-      this.flashEffects[i].life -= deltaTime * 1000;
-      if (this.flashEffects[i].life <= 0) {
-        this.flashEffects.splice(i, 1);
+    // Обновление flash эффектов (всегда нужен рендеринг для анимации)
+    if (this.flashEffects.length > 0) {
+      for (let i = this.flashEffects.length - 1; i >= 0; i--) {
+        this.flashEffects[i].life -= deltaTime * 1000;
+        if (this.flashEffects[i].life <= 0) {
+          this.flashEffects.splice(i, 1);
+        }
       }
+      this.needsRedraw = true;
     }
 
-    // Обновление эффектов взрыва
-    for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
-      const explosion = this.explosionEffects[i];
-      explosion.life -= deltaTime * 1000;
-      explosion.size += explosion.speed * deltaTime;
-      
-      if (explosion.life <= 0) {
-        this.explosionEffects.splice(i, 1);
+    // Обновление эффектов взрыва (всегда нужен рендеринг для анимации)
+    if (this.explosionEffects.length > 0) {
+      for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+        const explosion = this.explosionEffects[i];
+        explosion.life -= deltaTime * 1000;
+        explosion.size += explosion.speed * deltaTime;
+        
+        if (explosion.life <= 0) {
+          this.explosionEffects.splice(i, 1);
+        }
       }
+      this.needsRedraw = true;
     }
   }
 
   render() {
+    // Рендерим всегда, так как есть анимации (бомбы пульсируют, flash эффекты)
+    // Но оптимизации внутри render() уменьшают нагрузку
     this.renderer.render();
+    this.needsRedraw = false;
   }
 
   // Вспомогательные методы
