@@ -198,8 +198,8 @@ export class FrostClickGameLogic {
   createObject(type, speed) {
     if (!this.game.isActive || this.game.isPaused) return;
 
-    const x = Math.random() * (window.innerWidth - this.game.OBJECT_SIZE) + this.game.OBJECT_SIZE / 2;
-    const y = -this.game.OBJECT_SIZE;
+    const x = Math.random() * (window.innerWidth - this.game.SPRITE_SIZE) + this.game.SPRITE_SIZE / 2;
+    const y = -this.game.SPRITE_SIZE;
 
     this.game.objects.push({ type, x, y, speed });
     this.game.needsRedraw = true;
@@ -218,19 +218,29 @@ export class FrostClickGameLogic {
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
 
-    // Проверяем попадание в объекты
-    for (let i = this.game.objects.length - 1; i >= 0; i--) {
-      const obj = this.game.objects[i];
+    // Проверяем попадание в объекты (сверху вниз - последние объекты имеют приоритет)
+    // Сортируем по Y для проверки объектов сверху вниз
+    const sortedObjects = this.game.objects
+      .map((obj, index) => ({ obj, index }))
+      .sort((a, b) => b.obj.y - a.obj.y); // Сверху вниз
+
+    for (const { obj, index: i } of sortedObjects) {
       const dx = x - obj.x;
       const dy = y - obj.y;
       const distanceSq = dx * dx + dy * dy;
-      const hitRadiusSq = Math.pow(this.game.OBJECT_SIZE / 2 + this.game.HIT_PADDING, 2);
+      
+      // Используем реальный размер спрайта для hitbox
+      const hitRadius = (this.game.SPRITE_SIZE / 2) + this.game.HIT_PADDING;
+      const hitRadiusSq = hitRadius * hitRadius;
 
       if (distanceSq <= hitRadiusSq) {
         const type = obj.type;
 
-        // Удаление объекта
-        this.game.objects.splice(i, 1);
+        // Удаление объекта (используем оригинальный индекс)
+        const originalIndex = this.game.objects.indexOf(obj);
+        if (originalIndex !== -1) {
+          this.game.objects.splice(originalIndex, 1);
+        }
         this.game.needsRedraw = true;
 
         // Flash эффект
