@@ -1,0 +1,138 @@
+/**
+ * Frost Click Game Styles
+ * 
+ * Этот файл содержит ТОЛЬКО специфичные стили для игры Frost Click:
+ * - HUD элементы (счет, таймер, PB)
+ * - Кнопки игры (пауза, назад в меню)
+ * - Overlay паузы и Game Over
+ * 
+ * Общие стили (объекты, flash эффекты, анимации) находятся в style.css
+ */
+
+/* HUD Elements */
+.fc-hud {
+  position: absolute;
+  color: white;
+  font-family: 'Arial', sans-serif;
+  z-index: 10;
+  text-shadow: 0 0 10px rgba(77, 255, 204, 0.5);
+}
+
+.fc-score {
+  top: 20px;
+  left: 20px;
+  color: #4dffcc;
+  font-size: 26px;
+}
+
+.fc-pb-score {
+  top: 50px;
+  left: 20px;
+  color: #c8fff6;
+  font-size: 15px;
+}
+
+.fc-timer {
+  top: 20px;
+  right: 20px;
+  color: #9f4dff;
+  font-size: 22px;
+}
+
+/* Buttons */
+.fc-btn {
+  border-radius: 10px;
+  background: rgba(77, 255, 204, 0.25);
+  border: 1px solid rgba(77, 255, 204, 0.35);
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.fc-btn:hover {
+  background: rgba(77, 255, 204, 0.45);
+  box-shadow: 0 0 12px rgba(77, 255, 204, 0.7);
+}
+
+.fc-pause-btn {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  z-index: 40;
+}
+
+.fc-back-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 50;
+}
+
+/* Pause Overlay */
+.fc-pause-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(20, 30, 60, 0.6);
+  backdrop-filter: blur(4px);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 250;
+  flex-direction: column;
+  gap: 30px;
+  color: white;
+  font-size: 40px;
+  text-shadow: 0 0 15px #4dffcc;
+}
+
+.fc-pause-overlay span {
+  font-size: 50px;
+  color: #4dffcc;
+  text-shadow: 0 0 20px #4dffcc;
+}
+
+/* Game Over */
+.fc-game-over {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 30px;
+  border-radius: 15px;
+  text-align: center;
+  display: none;
+  z-index: 50;
+  min-width: 300px;
+}
+
+.fc-game-over h2 {
+  margin-top: 0;
+  color: #4dffcc;
+}
+
+.fc-game-over p {
+  margin: 10px 0;
+}
+
+.fc-game-over button {
+  margin: 8px;
+  display: inline-block;
+}
+
+#fc-submit-score,
+#fc-show-leaderboard {
+  display: none;
+}
+
+/* 
+ * Объекты, flash эффект и анимации наследуются из style.css
+ * Эти стили уже определены глобально и применяются ко всем играм
+ */
+

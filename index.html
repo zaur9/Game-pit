@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Game Arena - Mini Games Collection</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="games/frost-click/frost-click.css">
+</head>
+<body>
+
+  <!-- ====== MAIN MENU ====== -->
+  <div id="main-menu"></div>
+
+  <!-- ====== GAME ARENA CONTAINER ====== -->
+  <div id="game-arena-container" style="display: none;"></div>
+
+  <!-- Background music element -->
+  <audio id="bg-music" loop>
+    <source src="music.mp3" type="audio/mpeg">
+  </audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+
+  <!-- Core modules -->
+  <script type="module" src="main.js"></script>
+
+  <!-- Snow background -->
+  <script>
+    function createSnow() {
+      const snow = document.createElement("div");
+      snow.classList.add("snowflake");
+      snow.textContent = "•";
+      snow.style.left = Math.random() * 100 + "vw";
+      snow.style.fontSize = (8 + Math.random() * 8) + "px";
+      snow.style.animationDuration = (6 + Math.random() * 8) + "s";
+      document.body.appendChild(snow);
+      setTimeout(() => snow.remove(), 15000);
+    }
+    setInterval(createSnow, 220);
+  </script>
+
+</body>
+</html>
