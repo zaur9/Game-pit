@@ -38,6 +38,9 @@ export class FrostClickGame extends GameBase {
     this.SPAWN_CHANCE_BOMB = 0.60;
     this.SPAWN_CHANCE_GIFT = 0.18;
     this.SPAWN_CHANCE_ICE = 0.0033;
+    
+    // Оптимизация: ограничение максимального количества объектов на экране
+    this.MAX_OBJECTS_ON_SCREEN = 50;
 
     // Somnia
     this.SOMNIA_INTERVAL_MS = 58_000;
