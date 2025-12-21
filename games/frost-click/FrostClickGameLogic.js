@@ -298,12 +298,12 @@ export class FrostClickGameLogic {
       const halfSize = this.game.SPRITE_SIZE / 2;
       const hitPadding = this.game.HIT_PADDING;
       
-      // Прямоугольная проверка: по бокам и снизу - строго в пределах объекта
-      // Сверху - клик работает даже за пределами объекта
-      const leftBound = obj.x - halfSize - hitPadding;
-      const rightBound = obj.x + halfSize + hitPadding;
-      const bottomBound = obj.y + halfSize + hitPadding;
-      const topBound = obj.y - halfSize; // Сверху без padding, чтобы клик работал за пределами
+      // Прямоугольная проверка: по бокам и снизу - строго в пределах объекта (без padding)
+      // Сверху - клик работает даже за пределами объекта (с padding)
+      const leftBound = obj.x - halfSize; // Строго в пределах слева
+      const rightBound = obj.x + halfSize; // Строго в пределах справа
+      const bottomBound = obj.y + halfSize; // Строго в пределах снизу
+      const topBound = obj.y - halfSize - hitPadding; // Сверху с padding, чтобы клик работал за пределами
       
       // Проверка попадания в прямоугольную область
       if (x >= leftBound && x <= rightBound && y >= topBound && y <= bottomBound) {
