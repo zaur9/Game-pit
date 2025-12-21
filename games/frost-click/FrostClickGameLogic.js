@@ -24,6 +24,7 @@ export class FrostClickGameLogic {
     this.game.canvas.style.left = '0';
     this.game.canvas.style.width = '100%';
     this.game.canvas.style.height = '100%';
+    this.game.canvas.style.zIndex = '1';
     this.game.canvas.style.imageRendering = 'crisp-edges';
     this.game.canvas.width = window.innerWidth;
     this.game.canvas.height = window.innerHeight;
@@ -59,12 +60,21 @@ export class FrostClickGameLogic {
     this.game.connectWalletBtn.textContent = 'Connect Wallet';
     this.game.connectWalletBtn.className = 'fc-btn fc-connect-wallet-btn';
     this.game.connectWalletBtn.style.display = 'block'; // Всегда видна
-    this.game.connectWalletBtn.addEventListener('click', async () => {
-      if (window.handleConnectWallet) {
-        await window.handleConnectWallet();
-      } else {
-        const { handleConnectWallet } = await import('../../web3.js');
-        await handleConnectWallet();
+    this.game.connectWalletBtn.style.pointerEvents = 'auto';
+    this.game.connectWalletBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      try {
+        if (window.handleConnectWallet) {
+          await window.handleConnectWallet();
+        } else {
+          const { handleConnectWallet } = await import('../../web3.js');
+          await handleConnectWallet();
+        }
+        // Обновляем текст кнопки после подключения
+        this.updateConnectWalletButton();
+      } catch (error) {
+        console.error('Connect wallet error:', error);
       }
     });
 
