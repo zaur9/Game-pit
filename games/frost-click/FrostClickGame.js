@@ -66,6 +66,7 @@ export class FrostClickGame extends GameBase {
     this.restartBtn = null;
     this.pauseOverlay = null;
     this.freezeTimer = null;
+    this.leaderboardBtn = null;
 
     // Flash эффекты
     this.flashEffects = [];
@@ -150,6 +151,11 @@ export class FrostClickGame extends GameBase {
 
     // Обновление PB
     this.updatePersonalBest();
+    
+    // Показываем кнопку лидерборда если подключен кошелек
+    if (this.leaderboardBtn && window.userAccount) {
+      this.leaderboardBtn.style.display = 'block';
+    }
   }
 
   onStop() {
