@@ -74,12 +74,18 @@ export class FrostClickGame extends GameBase {
 
     // Flash эффекты
     this.flashEffects = [];
+    this.MAX_FLASH_EFFECTS = 10; // Ограничение количества flash эффектов
     
     // Эффекты взрыва
     this.explosionEffects = [];
     
     // Оптимизация рендеринга
     this.needsRedraw = true;
+    
+    // Оптимизация кликов: кэш для сортировки объектов
+    this.objectsSortedCache = null;
+    this.lastClickTime = 0;
+    this.CLICK_THROTTLE_MS = 16; // ~60 FPS для кликов
 
     // Модули
     this.renderer = new FrostClickRenderer(this);
@@ -268,6 +274,11 @@ export class FrostClickGame extends GameBase {
 
   // Вспомогательные методы
   createFlash(x, y) {
+    // Оптимизация: ограничиваем количество flash эффектов
+    if (this.flashEffects.length >= this.MAX_FLASH_EFFECTS) {
+      // Удаляем самый старый flash эффект
+      this.flashEffects.shift();
+    }
     this.flashEffects.push({ x, y, life: 250 });
   }
 
