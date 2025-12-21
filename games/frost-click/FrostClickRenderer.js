@@ -95,6 +95,12 @@ export class FrostClickRenderer {
     // Кэшируем Date.now() один раз за кадр
     const now = Date.now();
     const pulseValue = Math.sin(now / 200) * 0.3 + 0.7;
+    
+    // Кэшируем размеры экрана для оптимизации проверок видимости
+    const screenHeight = window.innerHeight;
+    const screenWidth = window.innerWidth;
+    const spriteSize = this.game.SPRITE_SIZE;
+    const halfSpriteSize = spriteSize / 2;
 
     // Очистка Canvas
     this.game.ctx.clearRect(0, 0, this.game.canvas.width, this.game.canvas.height);
@@ -107,38 +113,38 @@ export class FrostClickRenderer {
       objects.sort((a, b) => a.y - b.y);
     }
     
-    // Оптимизация: предварительно считаем количество бомб для оптимизации
+    // Оптимизация: предварительно считаем количество бомб и фильтруем видимые объекты
     let bombCount = 0;
-    for (const obj of objects) {
-      if (obj.type === 'bomb') bombCount++;
-    }
+    const visibleObjects = [];
+    const visibleBombs = [];
     
-    // Группируем объекты по типу для батчинга эффектов (только если есть бомбы)
-    const bombs = bombCount > 0 ? [] : null;
-    const regular = [];
-    
+    // Фильтруем только видимые объекты (оптимизация рендеринга)
     for (const obj of objects) {
-      if (obj.type === 'bomb' && bombs) {
-        bombs.push(obj);
-      } else {
-        // Somnia теперь рендерится как обычный объект без эффектов
-        regular.push(obj);
+      // Проверка видимости: объект виден если его Y координата в пределах экрана + отступ
+      if (obj.y > -spriteSize && obj.y < screenHeight + spriteSize &&
+          obj.x > -spriteSize && obj.x < screenWidth + spriteSize) {
+        if (obj.type === 'bomb') {
+          bombCount++;
+          visibleBombs.push(obj);
+        } else {
+          visibleObjects.push(obj);
+        }
       }
     }
     
-    // Рендерим обычные объекты (включая Somnia без эффектов)
-    for (const obj of regular) {
+    // Рендерим обычные объекты (включая Somnia без эффектов) - только видимые
+    for (const obj of visibleObjects) {
       const sprite = this.emojiSprites.get(obj.type);
       if (sprite && sprite.canvas) {
-        const x = obj.x - sprite.width / 2;
-        const y = obj.y - sprite.height / 2;
+        // Кэшируем вычисления позиции
+        const x = obj.x - halfSpriteSize;
+        const y = obj.y - halfSpriteSize;
         this.game.ctx.drawImage(sprite.canvas, x, y);
       }
     }
     
-    // Рендерим бомбы с пульсацией (используем кэшированное значение)
-    // Оптимизация: shadowBlur очень дорогая операция, используем только для видимых бомб
-    if (bombs && bombs.length > 0) {
+    // Рендерим бомбы с пульсацией (используем кэшированное значение) - только видимые
+    if (visibleBombs.length > 0) {
       this.game.ctx.save();
       // Прозрачность убрана - бомба полностью непрозрачна
       // Оптимизация: уменьшаем shadowBlur для лучшей производительности
@@ -146,19 +152,18 @@ export class FrostClickRenderer {
       this.game.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
       this.game.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
       
-      for (const obj of bombs) {
+      const bombRadius = this.game.OBJECT_SIZE / 2 + 5;
+      for (const obj of visibleBombs) {
         const sprite = this.emojiSprites.get(obj.type);
         if (sprite && sprite.canvas) {
-          const x = obj.x - sprite.width / 2;
-          const y = obj.y - sprite.height / 2;
+          const x = obj.x - halfSpriteSize;
+          const y = obj.y - halfSpriteSize;
           this.game.ctx.drawImage(sprite.canvas, x, y);
         }
-        // Оптимизация: рисуем круг только если бомба видна на экране
-        if (obj.y > -this.game.SPRITE_SIZE && obj.y < window.innerHeight + this.game.SPRITE_SIZE) {
-          this.game.ctx.beginPath();
-          this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 5, 0, Math.PI * 2);
-          this.game.ctx.fill();
-        }
+        // Рисуем круг свечения (объект уже проверен на видимость)
+        this.game.ctx.beginPath();
+        this.game.ctx.arc(obj.x, obj.y, bombRadius, 0, Math.PI * 2);
+        this.game.ctx.fill();
       }
       this.game.ctx.restore();
     }
@@ -167,13 +172,24 @@ export class FrostClickRenderer {
     // Оптимизация: рендерим только активные flash эффекты и ограничиваем их количество
     if (this.game.flashEffects.length > 0) {
       this.game.ctx.save();
+      // Кэшируем константы для вычислений
+      const maxLife = 250;
+      const maxSize = 80;
+      
       for (const flash of this.game.flashEffects) {
         if (flash.life > 0) {
-          const alpha = Math.min(flash.life / 250, 1);
-          const size = ((250 - flash.life) / 250) * 80;
+          const lifeRatio = flash.life / maxLife;
+          const alpha = Math.min(lifeRatio, 1);
+          const size = (1 - lifeRatio) * maxSize;
           
           // Оптимизация: пропускаем слишком маленькие или невидимые эффекты
           if (size < 1 || alpha < 0.01) continue;
+          
+          // Оптимизация: проверка видимости flash эффекта
+          if (flash.x < -size || flash.x > screenWidth + size ||
+              flash.y < -size || flash.y > screenHeight + size) {
+            continue; // Пропускаем невидимые эффекты
+          }
           
           this.game.ctx.globalAlpha = alpha;
           const gradient = this.game.ctx.createRadialGradient(
