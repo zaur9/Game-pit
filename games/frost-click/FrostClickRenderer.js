@@ -11,6 +11,7 @@ export class FrostClickRenderer {
 
   /**
    * Предзагрузка emoji как спрайтов для быстрого рендеринга
+   * Используем Canvas элементы вместо ImageData для правильной композиции
    */
   async loadEmojiSprites() {
     const emojis = {
@@ -22,9 +23,9 @@ export class FrostClickRenderer {
 
     // Создаем временный canvas для рендеринга emoji
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = this.game.OBJECT_SIZE * 2; // Увеличиваем для лучшего качества
+    tempCanvas.width = this.game.OBJECT_SIZE * 2;
     tempCanvas.height = this.game.OBJECT_SIZE * 2;
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    const tempCtx = tempCanvas.getContext('2d');
     tempCtx.font = `${this.game.OBJECT_SIZE * 1.5}px Arial`;
     tempCtx.textAlign = 'center';
     tempCtx.textBaseline = 'middle';
@@ -33,11 +34,18 @@ export class FrostClickRenderer {
       tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
       tempCtx.fillText(emoji, tempCanvas.width / 2, tempCanvas.height / 2);
       
-      // Сохраняем как ImageData для быстрого копирования
+      // Создаем новый canvas для каждого спрайта (для правильной композиции)
+      const spriteCanvas = document.createElement('canvas');
+      spriteCanvas.width = tempCanvas.width;
+      spriteCanvas.height = tempCanvas.height;
+      const spriteCtx = spriteCanvas.getContext('2d');
+      spriteCtx.drawImage(tempCanvas, 0, 0);
+      
+      // Сохраняем Canvas элемент вместо ImageData
       this.emojiSprites.set(key, {
-        imageData: tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height),
-        width: tempCanvas.width,
-        height: tempCanvas.height
+        canvas: spriteCanvas,
+        width: spriteCanvas.width,
+        height: spriteCanvas.height
       });
     }
 
@@ -54,10 +62,17 @@ export class FrostClickRenderer {
     tempCtx.beginPath();
     tempCtx.arc(tempCanvas.width / 2, tempCanvas.height / 2, tempCanvas.width / 2 - 2, 0, Math.PI * 2);
     tempCtx.fill();
+    
+    const somniaCanvas = document.createElement('canvas');
+    somniaCanvas.width = tempCanvas.width;
+    somniaCanvas.height = tempCanvas.height;
+    const somniaCtx = somniaCanvas.getContext('2d');
+    somniaCtx.drawImage(tempCanvas, 0, 0);
+    
     this.emojiSprites.set('somnia', {
-      imageData: tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height),
-      width: tempCanvas.width,
-      height: tempCanvas.height
+      canvas: somniaCanvas,
+      width: somniaCanvas.width,
+      height: somniaCanvas.height
     });
 
     this.emojiLoaded = true;
@@ -72,14 +87,16 @@ export class FrostClickRenderer {
     // Очистка Canvas
     this.game.ctx.clearRect(0, 0, this.game.canvas.width, this.game.canvas.height);
 
-    // Рендеринг всех объектов
-    for (const obj of this.game.objects) {
+    // Рендеринг всех объектов (сортируем по Y для правильного порядка)
+    const sortedObjects = [...this.game.objects].sort((a, b) => a.y - b.y);
+    
+    for (const obj of sortedObjects) {
       const sprite = this.emojiSprites.get(obj.type);
-      if (sprite) {
-        // Рендерим спрайт с центрированием
+      if (sprite && sprite.canvas) {
+        // Используем drawImage вместо putImageData для правильной композиции
         const x = obj.x - sprite.width / 2;
         const y = obj.y - sprite.height / 2;
-        this.game.ctx.putImageData(sprite.imageData, x, y);
+        this.game.ctx.drawImage(sprite.canvas, x, y);
       }
 
       // Дополнительные эффекты для бомб (пульсация и свечение)
