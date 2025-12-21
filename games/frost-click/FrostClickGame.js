@@ -151,11 +151,6 @@ export class FrostClickGame extends GameBase {
 
     // Обновление PB
     this.updatePersonalBest();
-    
-    // Показываем кнопку лидерборда если подключен кошелек
-    if (this.leaderboardBtn && window.userAccount) {
-      this.leaderboardBtn.style.display = 'block';
-    }
   }
 
   onStop() {
