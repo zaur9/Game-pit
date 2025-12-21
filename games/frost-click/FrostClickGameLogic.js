@@ -30,11 +30,12 @@ export class FrostClickGameLogic {
     this.game.canvas.height = window.innerHeight;
     this.game.ctx = this.game.canvas.getContext('2d', {
       alpha: true,
-      desynchronized: true
+      desynchronized: true,
+      willReadFrequently: false // Оптимизация: не читаем пиксели обратно
     });
     
-    this.game.ctx.imageSmoothingEnabled = true;
-    this.game.ctx.imageSmoothingQuality = 'high';
+    // Оптимизация: отключаем сглаживание для лучшей производительности
+    this.game.ctx.imageSmoothingEnabled = false; // Быстрее, но менее сглажено
     
     this.game.container.appendChild(this.game.canvas);
 
@@ -263,6 +264,12 @@ export class FrostClickGameLogic {
    */
   createObject(type, speed) {
     if (!this.game.isActive || this.game.isPaused) return;
+    
+    // Оптимизация: ограничиваем количество объектов на экране
+    if (this.game.objects.length >= this.game.MAX_OBJECTS_ON_SCREEN) {
+      // Удаляем самый старый объект (первый в массиве)
+      this.game.objects.shift();
+    }
 
     const x = Math.random() * (window.innerWidth - this.game.SPRITE_SIZE) + this.game.SPRITE_SIZE / 2;
     const y = -this.game.SPRITE_SIZE;
