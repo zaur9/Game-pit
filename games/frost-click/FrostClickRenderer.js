@@ -149,6 +149,57 @@ export class FrostClickRenderer {
       }
     }
 
+    // Эффекты взрыва (при клике на бомбе)
+    for (const explosion of this.game.explosionEffects) {
+      if (explosion.life > 0) {
+        const alpha = Math.min(explosion.life / explosion.maxLife, 1);
+        const progress = 1 - (explosion.life / explosion.maxLife);
+        
+        // Центральная вспышка взрыва
+        const centerX = explosion.x + Math.cos(explosion.angle) * explosion.size * 0.3;
+        const centerY = explosion.y + Math.sin(explosion.angle) * explosion.size * 0.3;
+        
+        // Основной огненный шар
+        this.game.ctx.save();
+        this.game.ctx.globalAlpha = alpha * 0.8;
+        const gradient = this.game.ctx.createRadialGradient(
+          explosion.x, explosion.y, 0,
+          explosion.x, explosion.y, explosion.size * 0.5
+        );
+        gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
+        gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
+        gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
+        gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
+        this.game.ctx.fillStyle = gradient;
+        this.game.ctx.beginPath();
+        this.game.ctx.arc(explosion.x, explosion.y, explosion.size * 0.5, 0, Math.PI * 2);
+        this.game.ctx.fill();
+        
+        // Частицы взрыва (летящие искры)
+        this.game.ctx.globalAlpha = alpha;
+        this.game.ctx.fillStyle = `rgba(255, ${200 - progress * 100}, 0, ${alpha})`;
+        this.game.ctx.beginPath();
+        this.game.ctx.arc(centerX, centerY, 3 + progress * 5, 0, Math.PI * 2);
+        this.game.ctx.fill();
+        
+        // Дополнительные искры
+        for (let i = 0; i < 3; i++) {
+          const sparkAngle = explosion.angle + (Math.random() - 0.5) * 0.5;
+          const sparkDist = explosion.size * (0.3 + Math.random() * 0.4);
+          const sparkX = explosion.x + Math.cos(sparkAngle) * sparkDist;
+          const sparkY = explosion.y + Math.sin(sparkAngle) * sparkDist;
+          
+          this.game.ctx.globalAlpha = alpha * 0.6;
+          this.game.ctx.fillStyle = `rgba(255, ${150 - progress * 50}, 0, ${alpha * 0.8})`;
+          this.game.ctx.beginPath();
+          this.game.ctx.arc(sparkX, sparkY, 2 + progress * 3, 0, Math.PI * 2);
+          this.game.ctx.fill();
+        }
+        
+        this.game.ctx.restore();
+      }
+    }
+
     // Freeze overlay (если активен)
     if (this.game.isFrozen) {
       this.game.ctx.fillStyle = 'rgba(200, 240, 255, 0.3)';
