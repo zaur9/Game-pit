@@ -85,48 +85,95 @@ export class FrostClickRenderer {
    */
   render() {
     if (!this.game.ctx || !this.emojiLoaded) return;
+    
+    // Оптимизация: рендерим только если нужно (но всегда для анимаций)
+    // Для анимаций (бомбы, flash) нужно рендерить каждый кадр
+    const hasAnimatedEffects = this.game.flashEffects.length > 0 || 
+                                this.game.explosionEffects.length > 0 ||
+                                this.game.objects.some(obj => obj.type === 'bomb');
+
+    // Кэшируем Date.now() один раз за кадр
+    const now = Date.now();
+    const pulseValue = Math.sin(now / 200) * 0.3 + 0.7;
 
     // Очистка Canvas
     this.game.ctx.clearRect(0, 0, this.game.canvas.width, this.game.canvas.height);
 
-    // Рендеринг всех объектов (сортируем по Y для правильного порядка)
-    const sortedObjects = [...this.game.objects].sort((a, b) => a.y - b.y);
+    // Оптимизация: сортируем только если объектов много, и используем in-place сортировку
+    // Для небольшого количества объектов сортировка не критична
+    const objects = this.game.objects;
+    if (objects.length > 10) {
+      // Сортируем in-place для экономии памяти
+      objects.sort((a, b) => a.y - b.y);
+    }
     
-    for (const obj of sortedObjects) {
+    // Группируем объекты по типу для батчинга эффектов
+    const bombs = [];
+    const somnias = [];
+    const regular = [];
+    
+    for (const obj of objects) {
+      if (obj.type === 'bomb') {
+        bombs.push(obj);
+      } else if (obj.type === 'somnia') {
+        somnias.push(obj);
+      } else {
+        regular.push(obj);
+      }
+    }
+    
+    // Рендерим обычные объекты
+    for (const obj of regular) {
       const sprite = this.emojiSprites.get(obj.type);
       if (sprite && sprite.canvas) {
-        // Используем drawImage вместо putImageData для правильной композиции
         const x = obj.x - sprite.width / 2;
         const y = obj.y - sprite.height / 2;
         this.game.ctx.drawImage(sprite.canvas, x, y);
       }
-
-      // Дополнительные эффекты для бомб (пульсация и свечение)
-      if (obj.type === 'bomb') {
-        const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
-        this.game.ctx.save();
-        this.game.ctx.globalAlpha = pulse * 0.5;
-        this.game.ctx.shadowBlur = 25;
-        this.game.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
-        this.game.ctx.beginPath();
-        this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 5, 0, Math.PI * 2);
-        this.game.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
-        this.game.ctx.fill();
-        this.game.ctx.restore();
-      }
-
-      // Эффект свечения для Somnia
-      if (obj.type === 'somnia') {
-        this.game.ctx.save();
-        this.game.ctx.globalAlpha = 0.6;
-        this.game.ctx.shadowBlur = 15;
-        this.game.ctx.shadowColor = 'rgba(78, 145, 255, 0.8)';
+    }
+    
+    // Рендерим Somnia с эффектами (группируем save/restore)
+    if (somnias.length > 0) {
+      this.game.ctx.save();
+      this.game.ctx.globalAlpha = 0.6;
+      this.game.ctx.shadowBlur = 15;
+      this.game.ctx.shadowColor = 'rgba(78, 145, 255, 0.8)';
+      this.game.ctx.fillStyle = 'rgba(78, 145, 255, 0.2)';
+      
+      for (const obj of somnias) {
+        const sprite = this.emojiSprites.get(obj.type);
+        if (sprite && sprite.canvas) {
+          const x = obj.x - sprite.width / 2;
+          const y = obj.y - sprite.height / 2;
+          this.game.ctx.drawImage(sprite.canvas, x, y);
+        }
         this.game.ctx.beginPath();
         this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 3, 0, Math.PI * 2);
-        this.game.ctx.fillStyle = 'rgba(78, 145, 255, 0.2)';
         this.game.ctx.fill();
-        this.game.ctx.restore();
       }
+      this.game.ctx.restore();
+    }
+    
+    // Рендерим бомбы с пульсацией (используем кэшированное значение)
+    if (bombs.length > 0) {
+      this.game.ctx.save();
+      this.game.ctx.globalAlpha = pulseValue * 0.5;
+      this.game.ctx.shadowBlur = 25;
+      this.game.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
+      this.game.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
+      
+      for (const obj of bombs) {
+        const sprite = this.emojiSprites.get(obj.type);
+        if (sprite && sprite.canvas) {
+          const x = obj.x - sprite.width / 2;
+          const y = obj.y - sprite.height / 2;
+          this.game.ctx.drawImage(sprite.canvas, x, y);
+        }
+        this.game.ctx.beginPath();
+        this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 5, 0, Math.PI * 2);
+        this.game.ctx.fill();
+      }
+      this.game.ctx.restore();
     }
 
     // Flash эффекты (временные вспышки при клике)
