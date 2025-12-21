@@ -148,16 +148,24 @@ export class GameManager {
     // Останавливаем предыдущий интервал, если есть
     this.stopSnow();
 
-    function createSnow() {
+    // Снег должен создаваться только в контейнере игры, а не в body
+    if (!this.gameContainer) return;
+
+    const createSnow = () => {
       const snow = document.createElement("div");
       snow.classList.add("snowflake");
       snow.textContent = "•";
       snow.style.left = Math.random() * 100 + "vw";
       snow.style.fontSize = (8 + Math.random() * 8) + "px";
       snow.style.animationDuration = (6 + Math.random() * 8) + "s";
-      document.body.appendChild(snow);
-      setTimeout(() => snow.remove(), 15000);
-    }
+      // Добавляем снежинку в контейнер игры, а не в body
+      this.gameContainer.appendChild(snow);
+      setTimeout(() => {
+        if (snow.parentNode) {
+          snow.remove();
+        }
+      }, 15000);
+    };
 
     // Создаем снег каждые 220ms
     this.snowInterval = setInterval(createSnow, 220);
@@ -167,9 +175,16 @@ export class GameManager {
    * Остановить снег
    */
   stopSnow() {
+    // Останавливаем интервал создания новых снежинок
     if (this.snowInterval) {
       clearInterval(this.snowInterval);
       this.snowInterval = null;
+    }
+    
+    // Удаляем все существующие снежинки из контейнера игры
+    if (this.gameContainer) {
+      const snowflakes = this.gameContainer.querySelectorAll('.snowflake');
+      snowflakes.forEach(snow => snow.remove());
     }
   }
 
