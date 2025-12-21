@@ -50,8 +50,8 @@ export class FrostClickGame extends GameBase {
     this.ICE_INTERVAL = 45 * 1000;
 
     // Hitbox размеры
-    this.OBJECT_SIZE = 40;
-    this.HIT_PADDING = 8;
+    this.OBJECT_SIZE = 28; // Уменьшено с 40 до 28
+    this.HIT_PADDING = 6;
 
     // DOM элементы для UI
     this.scoreEl = null;
@@ -68,6 +68,9 @@ export class FrostClickGame extends GameBase {
 
     // Flash эффекты
     this.flashEffects = [];
+    
+    // Эффекты взрыва
+    this.explosionEffects = [];
     
     // Оптимизация рендеринга
     this.needsRedraw = true;
@@ -88,6 +91,7 @@ export class FrostClickGame extends GameBase {
     this.isFrozen = false;
     this.objects = [];
     this.flashEffects = [];
+    this.explosionEffects = [];
     this.pausedAccum = 0;
     this.pauseStart = null;
     this.needsRedraw = true;
@@ -160,6 +164,7 @@ export class FrostClickGame extends GameBase {
     // Очистка объектов
     this.objects = [];
     this.flashEffects = [];
+    this.explosionEffects = [];
 
     // Очистка Canvas
     if (this.ctx) {
@@ -219,6 +224,17 @@ export class FrostClickGame extends GameBase {
         this.flashEffects.splice(i, 1);
       }
     }
+
+    // Обновление эффектов взрыва
+    for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+      const explosion = this.explosionEffects[i];
+      explosion.life -= deltaTime * 1000;
+      explosion.size += explosion.speed * deltaTime;
+      
+      if (explosion.life <= 0) {
+        this.explosionEffects.splice(i, 1);
+      }
+    }
   }
 
   render() {
@@ -228,6 +244,22 @@ export class FrostClickGame extends GameBase {
   // Вспомогательные методы
   createFlash(x, y) {
     this.flashEffects.push({ x, y, life: 250 });
+  }
+
+  createExplosion(x, y) {
+    // Создаем эффект взрыва с несколькими частицами
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 / 8) * i;
+      this.explosionEffects.push({
+        x,
+        y,
+        angle,
+        size: 5,
+        speed: 200 + Math.random() * 100,
+        life: 500,
+        maxLife: 500
+      });
+    }
   }
 
   addScore(points) {
@@ -272,5 +304,6 @@ export class FrostClickGame extends GameBase {
   onCleanup() {
     this.onStop();
     this.flashEffects = [];
+    this.explosionEffects = [];
   }
 }
