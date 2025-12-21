@@ -39,6 +39,13 @@
   font-size: 22px;
 }
 
+.fc-leaderboard-btn {
+  position: absolute;
+  top: 20px;
+  right: 180px;
+  z-index: 30;
+}
+
 /* Buttons */
 .fc-btn {
   border-radius: 10px;
