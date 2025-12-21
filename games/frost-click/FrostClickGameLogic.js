@@ -53,6 +53,21 @@ export class FrostClickGameLogic {
     this.game.timerEl.textContent = '10:00';
     this.game.timerEl.className = 'fc-hud fc-timer';
 
+    // Кнопка подключения кошелька (в HUD, между таймером и лидербордом)
+    this.game.connectWalletBtn = document.createElement('button');
+    this.game.connectWalletBtn.id = 'fc-connect-wallet-btn';
+    this.game.connectWalletBtn.textContent = 'Connect Wallet';
+    this.game.connectWalletBtn.className = 'fc-btn fc-connect-wallet-btn';
+    this.game.connectWalletBtn.style.display = 'block'; // Всегда видна
+    this.game.connectWalletBtn.addEventListener('click', async () => {
+      if (window.handleConnectWallet) {
+        await window.handleConnectWallet();
+      } else {
+        const { handleConnectWallet } = await import('../../web3.js');
+        await handleConnectWallet();
+      }
+    });
+
     // Кнопка лидерборда (в HUD, слева от таймера)
     this.game.leaderboardBtn = document.createElement('button');
     this.game.leaderboardBtn.id = 'fc-leaderboard-btn';
@@ -107,6 +122,7 @@ export class FrostClickGameLogic {
     this.game.container.appendChild(this.game.scoreEl);
     this.game.container.appendChild(this.game.pbScoreEl);
     this.game.container.appendChild(this.game.timerEl);
+    this.game.container.appendChild(this.game.connectWalletBtn);
     this.game.container.appendChild(this.game.leaderboardBtn);
     this.game.container.appendChild(this.game.pauseBtn);
     this.game.container.appendChild(this.game.pauseOverlay);
@@ -137,6 +153,27 @@ export class FrostClickGameLogic {
         }
       }, 100);
     });
+
+    // Обновление текста кнопки Connect Wallet при изменении аккаунта
+    this.updateConnectWalletButton();
+    if (window.eventBus) {
+      window.eventBus.on('web3:accountChanged', () => {
+        this.updateConnectWalletButton();
+      });
+    }
+  }
+
+  /**
+   * Обновление текста кнопки Connect Wallet
+   */
+  updateConnectWalletButton() {
+    if (this.game.connectWalletBtn) {
+      if (window.userAccount) {
+        this.game.connectWalletBtn.textContent = window.userAccount.slice(0, 6) + '...' + window.userAccount.slice(-4);
+      } else {
+        this.game.connectWalletBtn.textContent = 'Connect Wallet';
+      }
+    }
   }
 
   /**
