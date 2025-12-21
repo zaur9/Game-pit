@@ -39,10 +39,17 @@
   font-size: 26px;
 }
 
+.fc-connect-wallet-btn {
+  position: absolute;
+  top: 20px;
+  right: 100px;
+  z-index: 30;
+}
+
 .fc-leaderboard-btn {
   position: absolute;
   top: 20px;
-  right: 180px;
+  right: 220px;
   z-index: 30;
 }
 
