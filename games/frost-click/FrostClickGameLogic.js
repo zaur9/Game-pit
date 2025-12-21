@@ -247,7 +247,12 @@ export class FrostClickGameLogic {
         }
 
         if (type === 'bomb') {
-          this.endGame(false);
+          // Создаем эффект взрыва перед завершением игры
+          this.game.createExplosion(obj.x, obj.y);
+          // Небольшая задержка для показа взрыва
+          setTimeout(() => {
+            this.endGame(false);
+          }, 300);
           return;
         }
 
