@@ -53,15 +53,21 @@ export class FrostClickGameLogic {
     this.game.timerEl.textContent = '10:00';
     this.game.timerEl.className = 'fc-hud fc-timer';
 
-    // Кнопка лидерборда (в HUD, справа от таймера)
+    // Кнопка лидерборда (в HUD, слева от таймера)
     this.game.leaderboardBtn = document.createElement('button');
     this.game.leaderboardBtn.id = 'fc-leaderboard-btn';
     this.game.leaderboardBtn.textContent = 'Leaderboard';
     this.game.leaderboardBtn.className = 'fc-btn fc-leaderboard-btn';
-    this.game.leaderboardBtn.style.display = 'none'; // Показываем только если подключен кошелек
+    this.game.leaderboardBtn.style.display = 'block'; // Всегда видна
     this.game.leaderboardBtn.addEventListener('click', async () => {
       if (window.showLeaderboard) {
         await window.showLeaderboard();
+      } else if (window.userAccount) {
+        // Если кошелек подключен, но функция еще не загружена
+        const { showLeaderboard } = await import('../../web3.js');
+        await showLeaderboard();
+      } else {
+        alert('Please connect wallet first');
       }
     });
 
@@ -380,10 +386,7 @@ export class FrostClickGameLogic {
     }
     submitBtn.style.display = 'block';
 
-    // Кнопка лидерборда теперь в HUD, не в Game Over
-    if (this.game.leaderboardBtn) {
-      this.game.leaderboardBtn.style.display = 'block';
-    }
+    // Кнопка лидерборда всегда видна в HUD
   }
 }
 
