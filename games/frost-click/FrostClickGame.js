@@ -214,54 +214,67 @@ export class FrostClickGame extends GameBase {
   }
 
   update(deltaTime) {
-    let needsRedraw = false;
+    // Оптимизация: кэшируем размеры экрана
+    const screenHeight = window.innerHeight;
+    const maxY = screenHeight + this.SPRITE_SIZE;
     
     // Обновление позиций объектов
+    // Оптимизация: используем обратный цикл для безопасного удаления
+    let removedCount = 0;
     for (let i = this.objects.length - 1; i >= 0; i--) {
       const obj = this.objects[i];
 
       if (!this.isFrozen) {
-        const oldY = obj.y;
         obj.y += obj.speed * deltaTime;
-        
-        // Проверяем, изменилась ли позиция (для оптимизации рендеринга)
-        if (Math.abs(obj.y - oldY) > 0.1) {
-          needsRedraw = true;
-        }
 
-        // Удаление объектов за экраном
-        if (obj.y > window.innerHeight + this.SPRITE_SIZE) {
+        // Удаление объектов за экраном (оптимизированная проверка)
+        if (obj.y > maxY) {
+          // Оптимизация: используем более эффективное удаление
           this.objects.splice(i, 1);
-          needsRedraw = true;
+          removedCount++;
         }
       }
     }
     
-    this.needsRedraw = needsRedraw;
-
-    // Обновление flash эффектов (всегда нужен рендеринг для анимации)
-    if (this.flashEffects.length > 0) {
-      for (let i = this.flashEffects.length - 1; i >= 0; i--) {
-        this.flashEffects[i].life -= deltaTime * 1000;
-        if (this.flashEffects[i].life <= 0) {
-          this.flashEffects.splice(i, 1);
-        }
-      }
+    // Обновляем флаг только если были изменения
+    if (removedCount > 0 || !this.isFrozen) {
       this.needsRedraw = true;
     }
 
+    // Обновление flash эффектов (всегда нужен рендеринг для анимации)
+    // Оптимизация: обновляем только если есть эффекты
+    if (this.flashEffects.length > 0) {
+      const lifeDelta = deltaTime * 1000;
+      for (let i = this.flashEffects.length - 1; i >= 0; i--) {
+        const flash = this.flashEffects[i];
+        flash.life -= lifeDelta;
+        if (flash.life <= 0) {
+          this.flashEffects.splice(i, 1);
+        }
+      }
+      // Обновляем флаг только если остались активные эффекты
+      if (this.flashEffects.length > 0) {
+        this.needsRedraw = true;
+      }
+    }
+
     // Обновление эффектов взрыва (всегда нужен рендеринг для анимации)
+    // Оптимизация: обновляем только если есть эффекты
     if (this.explosionEffects.length > 0) {
+      const lifeDelta = deltaTime * 1000;
       for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
         const explosion = this.explosionEffects[i];
-        explosion.life -= deltaTime * 1000;
+        explosion.life -= lifeDelta;
         explosion.size += explosion.speed * deltaTime;
         
         if (explosion.life <= 0) {
           this.explosionEffects.splice(i, 1);
         }
       }
-      this.needsRedraw = true;
+      // Обновляем флаг только если остались активные эффекты
+      if (this.explosionEffects.length > 0) {
+        this.needsRedraw = true;
+      }
     }
   }
 
