@@ -109,20 +109,18 @@ export class FrostClickRenderer {
     
     // Группируем объекты по типу для батчинга эффектов
     const bombs = [];
-    const somnias = [];
     const regular = [];
     
     for (const obj of objects) {
       if (obj.type === 'bomb') {
         bombs.push(obj);
-      } else if (obj.type === 'somnia') {
-        somnias.push(obj);
       } else {
+        // Somnia теперь рендерится как обычный объект без эффектов
         regular.push(obj);
       }
     }
     
-    // Рендерим обычные объекты
+    // Рендерим обычные объекты (включая Somnia без эффектов)
     for (const obj of regular) {
       const sprite = this.emojiSprites.get(obj.type);
       if (sprite && sprite.canvas) {
@@ -130,28 +128,6 @@ export class FrostClickRenderer {
         const y = obj.y - sprite.height / 2;
         this.game.ctx.drawImage(sprite.canvas, x, y);
       }
-    }
-    
-    // Рендерим Somnia с эффектами (группируем save/restore)
-    if (somnias.length > 0) {
-      this.game.ctx.save();
-      this.game.ctx.globalAlpha = 0.6;
-      this.game.ctx.shadowBlur = 15;
-      this.game.ctx.shadowColor = 'rgba(78, 145, 255, 0.8)';
-      this.game.ctx.fillStyle = 'rgba(78, 145, 255, 0.2)';
-      
-      for (const obj of somnias) {
-        const sprite = this.emojiSprites.get(obj.type);
-        if (sprite && sprite.canvas) {
-          const x = obj.x - sprite.width / 2;
-          const y = obj.y - sprite.height / 2;
-          this.game.ctx.drawImage(sprite.canvas, x, y);
-        }
-        this.game.ctx.beginPath();
-        this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 3, 0, Math.PI * 2);
-        this.game.ctx.fill();
-      }
-      this.game.ctx.restore();
     }
     
     // Рендерим бомбы с пульсацией (используем кэшированное значение)
