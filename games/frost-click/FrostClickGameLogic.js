@@ -53,6 +53,18 @@ export class FrostClickGameLogic {
     this.game.timerEl.textContent = '10:00';
     this.game.timerEl.className = 'fc-hud fc-timer';
 
+    // Кнопка лидерборда (в HUD, справа от таймера)
+    this.game.leaderboardBtn = document.createElement('button');
+    this.game.leaderboardBtn.id = 'fc-leaderboard-btn';
+    this.game.leaderboardBtn.textContent = 'Leaderboard';
+    this.game.leaderboardBtn.className = 'fc-btn fc-leaderboard-btn';
+    this.game.leaderboardBtn.style.display = 'none'; // Показываем только если подключен кошелек
+    this.game.leaderboardBtn.addEventListener('click', async () => {
+      if (window.showLeaderboard) {
+        await window.showLeaderboard();
+      }
+    });
+
     this.game.pauseBtn = document.createElement('button');
     this.game.pauseBtn.id = 'fc-pause-btn';
     this.game.pauseBtn.textContent = 'Pause';
@@ -89,6 +101,7 @@ export class FrostClickGameLogic {
     this.game.container.appendChild(this.game.scoreEl);
     this.game.container.appendChild(this.game.pbScoreEl);
     this.game.container.appendChild(this.game.timerEl);
+    this.game.container.appendChild(this.game.leaderboardBtn);
     this.game.container.appendChild(this.game.pauseBtn);
     this.game.container.appendChild(this.game.pauseOverlay);
     this.game.container.appendChild(this.game.gameOverEl);
@@ -353,9 +366,8 @@ export class FrostClickGameLogic {
   showWeb3Buttons() {
     if (!window.userAccount) return;
 
+    // Кнопка Submit Score в Game Over
     let submitBtn = this.game.gameOverEl.querySelector('#fc-submit-score');
-    let leaderboardBtn = this.game.gameOverEl.querySelector('#fc-show-leaderboard');
-
     if (!submitBtn) {
       submitBtn = document.createElement('button');
       submitBtn.id = 'fc-submit-score';
@@ -366,22 +378,12 @@ export class FrostClickGameLogic {
       });
       this.game.gameOverEl.appendChild(submitBtn);
     }
-
-    if (!leaderboardBtn) {
-      leaderboardBtn = document.createElement('button');
-      leaderboardBtn.id = 'fc-show-leaderboard';
-      leaderboardBtn.className = 'fc-btn';
-      leaderboardBtn.textContent = 'Show Leaderboard';
-      leaderboardBtn.addEventListener('click', async () => {
-        if (window.showLeaderboard) {
-          await window.showLeaderboard();
-        }
-      });
-      this.game.gameOverEl.appendChild(leaderboardBtn);
-    }
-
     submitBtn.style.display = 'block';
-    leaderboardBtn.style.display = 'block';
+
+    // Кнопка лидерборда теперь в HUD, не в Game Over
+    if (this.game.leaderboardBtn) {
+      this.game.leaderboardBtn.style.display = 'block';
+    }
   }
 }
 
