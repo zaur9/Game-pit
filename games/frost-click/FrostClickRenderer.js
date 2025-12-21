@@ -164,25 +164,32 @@ export class FrostClickRenderer {
     }
 
     // Flash эффекты (временные вспышки при клике)
-    for (const flash of this.game.flashEffects) {
-      if (flash.life > 0) {
-        const alpha = Math.min(flash.life / 250, 1);
-        const size = ((250 - flash.life) / 250) * 80;
-        this.game.ctx.save();
-        this.game.ctx.globalAlpha = alpha;
-        const gradient = this.game.ctx.createRadialGradient(
-          flash.x, flash.y, 0,
-          flash.x, flash.y, size
-        );
-        gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
-        gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
-        gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
-        this.game.ctx.fillStyle = gradient;
-        this.game.ctx.beginPath();
-        this.game.ctx.arc(flash.x, flash.y, size, 0, Math.PI * 2);
-        this.game.ctx.fill();
-        this.game.ctx.restore();
+    // Оптимизация: рендерим только активные flash эффекты и ограничиваем их количество
+    if (this.game.flashEffects.length > 0) {
+      this.game.ctx.save();
+      for (const flash of this.game.flashEffects) {
+        if (flash.life > 0) {
+          const alpha = Math.min(flash.life / 250, 1);
+          const size = ((250 - flash.life) / 250) * 80;
+          
+          // Оптимизация: пропускаем слишком маленькие или невидимые эффекты
+          if (size < 1 || alpha < 0.01) continue;
+          
+          this.game.ctx.globalAlpha = alpha;
+          const gradient = this.game.ctx.createRadialGradient(
+            flash.x, flash.y, 0,
+            flash.x, flash.y, size
+          );
+          gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
+          gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
+          gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
+          this.game.ctx.fillStyle = gradient;
+          this.game.ctx.beginPath();
+          this.game.ctx.arc(flash.x, flash.y, size, 0, Math.PI * 2);
+          this.game.ctx.fill();
+        }
       }
+      this.game.ctx.restore();
     }
 
     // Эффекты взрыва (при клике на бомбе)
