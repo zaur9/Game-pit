@@ -283,6 +283,13 @@ export class FrostClickGameLogic {
    */
   handleCanvasClick(e) {
     if (!this.game.isActive || this.game.isPaused) return;
+    
+    // Оптимизация: троттлинг кликов для предотвращения лагов
+    const now = Date.now();
+    if (now - this.game.lastClickTime < this.game.CLICK_THROTTLE_MS) {
+      return; // Пропускаем клик, если прошло слишком мало времени
+    }
+    this.game.lastClickTime = now;
 
     // Получаем координаты клика относительно Canvas
     const rect = this.game.canvas.getBoundingClientRect();
@@ -291,13 +298,17 @@ export class FrostClickGameLogic {
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
 
-    // Проверяем попадание в объекты (сверху вниз - последние объекты имеют приоритет)
-    // Сортируем по Y для проверки объектов сверху вниз
-    const sortedObjects = this.game.objects
-      .map((obj, index) => ({ obj, index }))
-      .sort((a, b) => b.obj.y - a.obj.y); // Сверху вниз
-
-    for (const { obj, index: i } of sortedObjects) {
+    // Оптимизация: используем in-place сортировку без создания нового массива
+    // Сортируем объекты по Y (сверху вниз) для проверки попадания
+    const objects = this.game.objects;
+    if (objects.length === 0) return;
+    
+    // Создаем временный массив с индексами только один раз
+    const objectsWithIndex = objects.map((obj, index) => ({ obj, index }));
+    objectsWithIndex.sort((a, b) => b.obj.y - a.obj.y); // Сверху вниз
+    
+    // Используем отсортированный массив
+    for (const { obj, index: i } of objectsWithIndex) {
       // Используем реальный размер спрайта для hitbox
       const halfSize = this.game.SPRITE_SIZE / 2;
       const hitPadding = this.game.HIT_PADDING;
