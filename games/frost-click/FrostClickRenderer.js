@@ -99,20 +99,26 @@ export class FrostClickRenderer {
     // Очистка Canvas
     this.game.ctx.clearRect(0, 0, this.game.canvas.width, this.game.canvas.height);
 
-    // Оптимизация: сортируем только если объектов много, и используем in-place сортировку
-    // Для небольшого количества объектов сортировка не критична
+    // Оптимизация: сортируем только если объектов много и только при необходимости
     const objects = this.game.objects;
-    if (objects.length > 10) {
+    const needsSort = objects.length > 10;
+    if (needsSort) {
       // Сортируем in-place для экономии памяти
       objects.sort((a, b) => a.y - b.y);
     }
     
-    // Группируем объекты по типу для батчинга эффектов
-    const bombs = [];
+    // Оптимизация: предварительно считаем количество бомб для оптимизации
+    let bombCount = 0;
+    for (const obj of objects) {
+      if (obj.type === 'bomb') bombCount++;
+    }
+    
+    // Группируем объекты по типу для батчинга эффектов (только если есть бомбы)
+    const bombs = bombCount > 0 ? [] : null;
     const regular = [];
     
     for (const obj of objects) {
-      if (obj.type === 'bomb') {
+      if (obj.type === 'bomb' && bombs) {
         bombs.push(obj);
       } else {
         // Somnia теперь рендерится как обычный объект без эффектов
@@ -131,10 +137,12 @@ export class FrostClickRenderer {
     }
     
     // Рендерим бомбы с пульсацией (используем кэшированное значение)
-    if (bombs.length > 0) {
+    // Оптимизация: shadowBlur очень дорогая операция, используем только для видимых бомб
+    if (bombs && bombs.length > 0) {
       this.game.ctx.save();
       // Прозрачность убрана - бомба полностью непрозрачна
-      this.game.ctx.shadowBlur = 25;
+      // Оптимизация: уменьшаем shadowBlur для лучшей производительности
+      this.game.ctx.shadowBlur = 15; // Уменьшено с 25 для производительности
       this.game.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
       this.game.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
       
@@ -145,9 +153,12 @@ export class FrostClickRenderer {
           const y = obj.y - sprite.height / 2;
           this.game.ctx.drawImage(sprite.canvas, x, y);
         }
-        this.game.ctx.beginPath();
-        this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 5, 0, Math.PI * 2);
-        this.game.ctx.fill();
+        // Оптимизация: рисуем круг только если бомба видна на экране
+        if (obj.y > -this.game.SPRITE_SIZE && obj.y < window.innerHeight + this.game.SPRITE_SIZE) {
+          this.game.ctx.beginPath();
+          this.game.ctx.arc(obj.x, obj.y, this.game.OBJECT_SIZE / 2 + 5, 0, Math.PI * 2);
+          this.game.ctx.fill();
+        }
       }
       this.game.ctx.restore();
     }
