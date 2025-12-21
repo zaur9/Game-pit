@@ -77,6 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return await showLeaderboard();
   };
   
+  window.handleConnectWallet = async () => {
+    const { handleConnectWallet } = await import('./web3.js');
+    return await handleConnectWallet();
+  };
+  
   // Показываем главное меню
   gameManager.showMainMenu();
   
