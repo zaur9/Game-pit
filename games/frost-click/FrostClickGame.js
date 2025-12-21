@@ -67,6 +67,7 @@ export class FrostClickGame extends GameBase {
     this.pauseOverlay = null;
     this.freezeTimer = null;
     this.leaderboardBtn = null;
+    this.connectWalletBtn = null;
 
     // Flash эффекты
     this.flashEffects = [];
