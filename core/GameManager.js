@@ -10,6 +10,7 @@ export class GameManager {
     this.currentGame = null;
     this.gameContainer = null;
     this.mainMenu = null;
+    this.snowInterval = null; // Интервал для создания снега
   }
 
   /**
@@ -98,6 +99,9 @@ export class GameManager {
       this.gameContainer.innerHTML = '';
     }
 
+    // Запускаем снег для игры
+    this.startSnow();
+
     // Инициализируем и запускаем новую игру
     this.currentGame = game;
     game.init(this.gameContainer);
@@ -121,6 +125,9 @@ export class GameManager {
     // Останавливаем текущую игру
     this.stopCurrentGame();
 
+    // Останавливаем снег
+    this.stopSnow();
+
     // Скрываем контейнер игры
     if (this.gameContainer) {
       this.gameContainer.style.display = 'none';
@@ -132,6 +139,38 @@ export class GameManager {
     }
 
     eventBus.emit('menu:shown');
+  }
+
+  /**
+   * Запустить снег (только во время игры)
+   */
+  startSnow() {
+    // Останавливаем предыдущий интервал, если есть
+    this.stopSnow();
+
+    function createSnow() {
+      const snow = document.createElement("div");
+      snow.classList.add("snowflake");
+      snow.textContent = "•";
+      snow.style.left = Math.random() * 100 + "vw";
+      snow.style.fontSize = (8 + Math.random() * 8) + "px";
+      snow.style.animationDuration = (6 + Math.random() * 8) + "s";
+      document.body.appendChild(snow);
+      setTimeout(() => snow.remove(), 15000);
+    }
+
+    // Создаем снег каждые 220ms
+    this.snowInterval = setInterval(createSnow, 220);
+  }
+
+  /**
+   * Остановить снег
+   */
+  stopSnow() {
+    if (this.snowInterval) {
+      clearInterval(this.snowInterval);
+      this.snowInterval = null;
+    }
   }
 
   /**
