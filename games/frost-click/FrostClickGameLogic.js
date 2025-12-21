@@ -293,13 +293,20 @@ export class FrostClickGameLogic {
     for (const { obj, index: i } of sortedObjects) {
       const dx = x - obj.x;
       const dy = y - obj.y;
-      const distanceSq = dx * dx + dy * dy;
       
       // Используем реальный размер спрайта для hitbox
-      const hitRadius = (this.game.SPRITE_SIZE / 2) + this.game.HIT_PADDING;
-      const hitRadiusSq = hitRadius * hitRadius;
-
-      if (distanceSq <= hitRadiusSq) {
+      const halfSize = this.game.SPRITE_SIZE / 2;
+      const hitPadding = this.game.HIT_PADDING;
+      
+      // Прямоугольная проверка: по бокам и снизу - строго в пределах объекта
+      // Сверху - клик работает даже за пределами объекта
+      const leftBound = obj.x - halfSize - hitPadding;
+      const rightBound = obj.x + halfSize + hitPadding;
+      const bottomBound = obj.y + halfSize + hitPadding;
+      const topBound = obj.y - halfSize; // Сверху без padding, чтобы клик работал за пределами
+      
+      // Проверка попадания в прямоугольную область
+      if (x >= leftBound && x <= rightBound && y >= topBound && y <= bottomBound) {
         const type = obj.type;
 
         // Удаление объекта (используем оригинальный индекс)
