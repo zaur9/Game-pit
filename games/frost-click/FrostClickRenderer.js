@@ -133,7 +133,7 @@ export class FrostClickRenderer {
     // Рендерим бомбы с пульсацией (используем кэшированное значение)
     if (bombs.length > 0) {
       this.game.ctx.save();
-      this.game.ctx.globalAlpha = pulseValue * 0.5;
+      // Прозрачность убрана - бомба полностью непрозрачна
       this.game.ctx.shadowBlur = 25;
       this.game.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
       this.game.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
