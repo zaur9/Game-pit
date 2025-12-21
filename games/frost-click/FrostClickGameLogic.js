@@ -291,21 +291,21 @@ export class FrostClickGameLogic {
       .sort((a, b) => b.obj.y - a.obj.y); // Сверху вниз
 
     for (const { obj, index: i } of sortedObjects) {
-      const dx = x - obj.x;
-      const dy = y - obj.y;
-      
       // Используем реальный размер спрайта для hitbox
       const halfSize = this.game.SPRITE_SIZE / 2;
       const hitPadding = this.game.HIT_PADDING;
       
-      // Прямоугольная проверка: по бокам и снизу - строго в пределах объекта (без padding)
-      // Сверху - клик работает даже за пределами объекта (с padding)
-      const leftBound = obj.x - halfSize; // Строго в пределах слева
-      const rightBound = obj.x + halfSize; // Строго в пределах справа
-      const bottomBound = obj.y + halfSize; // Строго в пределах снизу
-      const topBound = obj.y - halfSize - hitPadding; // Сверху с padding, чтобы клик работал за пределами
+      // Прямоугольная проверка: padding ТОЛЬКО сверху
+      // По бокам и снизу - строго в пределах объекта (БЕЗ padding)
+      // Сверху - клик работает за пределами объекта (С padding)
+      const leftBound = obj.x - halfSize; // БЕЗ padding слева - строго в пределах
+      const rightBound = obj.x + halfSize; // БЕЗ padding справа - строго в пределах
+      const bottomBound = obj.y + halfSize; // БЕЗ padding снизу - строго в пределах
+      const topBound = obj.y - halfSize - hitPadding; // С padding сверху - клик работает за пределами
       
       // Проверка попадания в прямоугольную область
+      // x должен быть строго между leftBound и rightBound (без padding по бокам)
+      // y должен быть между topBound (с padding сверху) и bottomBound (без padding снизу)
       if (x >= leftBound && x <= rightBound && y >= topBound && y <= bottomBound) {
         const type = obj.type;
 
