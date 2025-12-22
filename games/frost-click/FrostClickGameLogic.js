@@ -27,16 +27,21 @@ export class FrostClickGameLogic {
     this.game.canvas.style.zIndex = '1';
     this.game.canvas.style.imageRendering = 'crisp-edges';
     
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение для одинакового FPS на всех экранах
-    const BASE_WIDTH = 800;
-    const BASE_HEIGHT = 600;
-    const SCALE = window.devicePixelRatio > 1 ? 1.5 : 1;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Используем реальные размеры экрана, но с ограничением для производительности
+    const realWidth = window.innerWidth;
+    const realHeight = window.innerHeight;
     
-    this.game.canvas.width = BASE_WIDTH * SCALE;
-    this.game.canvas.height = BASE_HEIGHT * SCALE;
-    this.game.canvasScale = SCALE;
-    this.game.canvasBaseWidth = BASE_WIDTH;
-    this.game.canvasBaseHeight = BASE_HEIGHT;
+    // Ограничиваем максимальное разрешение для производительности
+    const MAX_WIDTH = 1920;
+    const MAX_HEIGHT = 1080;
+    
+    const canvasWidth = Math.min(realWidth, MAX_WIDTH);
+    const canvasHeight = Math.min(realHeight, MAX_HEIGHT);
+    
+    this.game.canvas.width = canvasWidth;
+    this.game.canvas.height = canvasHeight;
+    this.game.canvasBaseWidth = canvasWidth;
+    this.game.canvasBaseHeight = canvasHeight;
     
     this.game.ctx = this.game.canvas.getContext('2d', {
       alpha: true,
@@ -44,8 +49,7 @@ export class FrostClickGameLogic {
       willReadFrequently: false
     });
     
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Масштабируем контекст
-    this.game.ctx.scale(SCALE, SCALE);
+    // НЕ масштабируем контекст - используем реальные размеры
     
     // Оптимизация: отключаем сглаживание для лучшей производительности
     this.game.ctx.imageSmoothingEnabled = false;
@@ -280,7 +284,9 @@ export class FrostClickGameLogic {
       }
     }
 
-    const x = Math.random() * (window.innerWidth - this.game.SPRITE_SIZE) + this.game.SPRITE_SIZE / 2;
+    // Используем реальную ширину canvas
+    const canvasWidth = this.game.canvasBaseWidth || this.game.canvas.width || window.innerWidth;
+    const x = Math.random() * (canvasWidth - this.game.SPRITE_SIZE) + this.game.SPRITE_SIZE / 2;
     const y = -this.game.SPRITE_SIZE;
 
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - получаем объект из пула
@@ -307,12 +313,13 @@ export class FrostClickGameLogic {
     }
     this.game.lastClickTime = now;
 
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение - масштабируем координаты
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Масштабируем координаты клика к размеру canvas
     // Оптимизация: кэшируем getBoundingClientRect (дорогая операция)
     if (!this._canvasRect || now - this._lastRectUpdate > 1000) {
       this._canvasRect = this.game.canvas.getBoundingClientRect();
-      this._scaleX = this.game.canvasBaseWidth / this._canvasRect.width;
-      this._scaleY = this.game.canvasBaseHeight / this._canvasRect.height;
+      // Canvas теперь того же размера что и экран, но нужно масштабировать координаты
+      this._scaleX = this.game.canvas.width / this._canvasRect.width;
+      this._scaleY = this.game.canvas.height / this._canvasRect.height;
       this._lastRectUpdate = now;
     }
     
