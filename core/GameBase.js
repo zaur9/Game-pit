@@ -30,11 +30,16 @@ export class GameBase {
    * @param {HTMLElement} container - контейнер для игры
    */
   async init(container) {
+    // Если контейнер уже установлен и тот же, не инициализируем повторно
+    if (this.container === container && this._initialized) {
+      return;
+    }
+    
     this.container = container;
     try {
       await this.onInit();
+      this._initialized = true;
     } catch (error) {
-      console.error(`Error initializing game ${this.id}:`, error);
       throw error;
     }
   }
