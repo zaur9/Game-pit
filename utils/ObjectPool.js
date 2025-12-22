@@ -1,13 +1,22 @@
 /**
- * ObjectPool - пул объектов для переиспользования
- * Исключает GC паузы от splice/shift
+ * ObjectPool - оптимизированный пул объектов
+ * Исключает GC паузы, сохраняет hidden classes V8
  */
 export class ObjectPool {
   constructor(createFn, initialSize = 50) {
     this.createFn = createFn;
     this.pool = [];
     this.active = [];
-    this.activeCount = 0;
+    this._needsCompact = false;
+    
+    // Счётчики по типам для быстрого доступа
+    this.typeCounts = {
+      snow: 0,
+      bomb: 0,
+      gift: 0,
+      ice: 0,
+      somnia: 0
+    };
     
     // Предзаполняем пул
     for (let i = 0; i < initialSize; i++) {
@@ -23,30 +32,50 @@ export class ObjectPool {
     if (this.pool.length > 0) {
       obj = this.pool.pop();
     } else {
-      // Если пул пуст, создаем новый объект
       obj = this.createFn();
     }
     
+    // НЕ удаляем свойства - сохраняем hidden class
     obj.active = true;
     this.active.push(obj);
-    this.activeCount++;
     return obj;
+  }
+  
+  /**
+   * Инициализировать объект (после acquire)
+   */
+  init(obj, type, x, y, speed) {
+    obj.type = type;
+    obj.x = x;
+    obj.y = y;
+    obj.speed = speed;
+    
+    // Обновляем счётчик типа
+    if (this.typeCounts[type] !== undefined) {
+      this.typeCounts[type]++;
+    }
   }
   
   /**
    * Вернуть объект в пул
    */
   release(obj) {
-    if (!obj) return;
-    obj.active = false;
-    // Очищаем свойства объекта
-    for (const key in obj) {
-      if (key !== 'active') {
-        delete obj[key];
-      }
+    if (!obj || !obj.active) return;
+    
+    // Обновляем счётчик типа
+    if (obj.type && this.typeCounts[obj.type] !== undefined) {
+      this.typeCounts[obj.type]--;
     }
+    
+    // НЕ удаляем свойства - просто сбрасываем в дефолт
+    obj.active = false;
+    obj.type = 'snow';
+    obj.x = 0;
+    obj.y = 0;
+    obj.speed = 0;
+    
     this.pool.push(obj);
-    this.activeCount--;
+    this._needsCompact = true;
   }
   
   /**
@@ -54,17 +83,32 @@ export class ObjectPool {
    */
   releaseAll() {
     for (let i = this.active.length - 1; i >= 0; i--) {
-      this.release(this.active[i]);
+      const obj = this.active[i];
+      if (obj.active) {
+        obj.active = false;
+        obj.type = 'snow';
+        obj.x = 0;
+        obj.y = 0;
+        obj.speed = 0;
+        this.pool.push(obj);
+      }
     }
     this.active.length = 0;
-    this.activeCount = 0;
+    this._needsCompact = false;
+    
+    // Сбрасываем счётчики
+    for (const key in this.typeCounts) {
+      this.typeCounts[key] = 0;
+    }
   }
   
   /**
-   * Получить все активные объекты
+   * Компактификация массива активных объектов
+   * Вызывать только когда нужно (не каждый кадр)
    */
-  getActive() {
-    // Очищаем неактивные объекты из массива
+  compact() {
+    if (!this._needsCompact) return;
+    
     let writeIndex = 0;
     for (let i = 0; i < this.active.length; i++) {
       if (this.active[i].active) {
@@ -72,13 +116,16 @@ export class ObjectPool {
           this.active[writeIndex] = this.active[i];
         }
         writeIndex++;
-      } else {
-        // Объект неактивен, возвращаем в пул
-        this.pool.push(this.active[i]);
       }
     }
     this.active.length = writeIndex;
-    this.activeCount = writeIndex;
+    this._needsCompact = false;
+  }
+  
+  /**
+   * Получить все активные объекты (без компактификации)
+   */
+  getActive() {
     return this.active;
   }
   
@@ -86,7 +133,22 @@ export class ObjectPool {
    * Количество активных объектов
    */
   getActiveCount() {
-    return this.activeCount;
+    // Компактифицируем только при запросе точного количества
+    this.compact();
+    return this.active.length;
+  }
+  
+  /**
+   * Проверить есть ли объекты типа
+   */
+  hasType(type) {
+    return this.typeCounts[type] > 0;
+  }
+  
+  /**
+   * Получить количество объектов типа
+   */
+  getTypeCount(type) {
+    return this.typeCounts[type] || 0;
   }
 }
-
