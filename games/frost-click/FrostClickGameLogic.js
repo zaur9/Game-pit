@@ -27,21 +27,16 @@ export class FrostClickGameLogic {
     this.game.canvas.style.zIndex = '1';
     this.game.canvas.style.imageRendering = 'crisp-edges';
     
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Используем реальные размеры экрана, но с ограничением для производительности
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Используем реальные размеры экрана 1:1 (без масштабирования)
+    // Это устраняет проблемы с координатами клика и эффектов
     const realWidth = window.innerWidth;
     const realHeight = window.innerHeight;
     
-    // Ограничиваем максимальное разрешение для производительности
-    const MAX_WIDTH = 1920;
-    const MAX_HEIGHT = 1080;
-    
-    const canvasWidth = Math.min(realWidth, MAX_WIDTH);
-    const canvasHeight = Math.min(realHeight, MAX_HEIGHT);
-    
-    this.game.canvas.width = canvasWidth;
-    this.game.canvas.height = canvasHeight;
-    this.game.canvasBaseWidth = canvasWidth;
-    this.game.canvasBaseHeight = canvasHeight;
+    // Устанавливаем canvas в реальный размер экрана (1:1)
+    this.game.canvas.width = realWidth;
+    this.game.canvas.height = realHeight;
+    this.game.canvasBaseWidth = realWidth;
+    this.game.canvasBaseHeight = realHeight;
     
     this.game.ctx = this.game.canvas.getContext('2d', {
       alpha: true,
@@ -49,7 +44,7 @@ export class FrostClickGameLogic {
       willReadFrequently: false
     });
     
-    // НЕ масштабируем контекст - используем реальные размеры
+    // НЕ масштабируем контекст - canvas 1:1 с экраном
     
     // Оптимизация: отключаем сглаживание для лучшей производительности
     this.game.ctx.imageSmoothingEnabled = false;
@@ -226,10 +221,11 @@ export class FrostClickGameLogic {
       });
     }
 
-    // Подписка на обновление аккаунта
-    eventBus.on('web3:accountChanged', () => {
+    // Подписка на обновление аккаунта (сохраняем ссылку для отписки)
+    this._onAccountChanged = () => {
       this.game.updatePersonalBest();
-    });
+    };
+    eventBus.on('web3:accountChanged', this._onAccountChanged);
   }
 
   /**
@@ -289,12 +285,9 @@ export class FrostClickGameLogic {
     const x = Math.random() * (canvasWidth - this.game.SPRITE_SIZE) + this.game.SPRITE_SIZE / 2;
     const y = -this.game.SPRITE_SIZE;
 
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - получаем объект из пула
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - получаем и инициализируем объект
     const obj = this.game.objectPool.acquire();
-    obj.type = type;
-    obj.x = x;
-    obj.y = y;
-    obj.speed = speed;
+    this.game.objectPool.init(obj, type, x, y, speed);
     
     // Новый объект = нужен рендер
     this.game.needsRedrawObjects = true;
@@ -313,18 +306,16 @@ export class FrostClickGameLogic {
     }
     this.game.lastClickTime = now;
 
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Масштабируем координаты клика к размеру canvas
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Canvas теперь 1:1 с экраном, координаты клика = координаты canvas
     // Оптимизация: кэшируем getBoundingClientRect (дорогая операция)
     if (!this._canvasRect || now - this._lastRectUpdate > 1000) {
       this._canvasRect = this.game.canvas.getBoundingClientRect();
-      // Canvas теперь того же размера что и экран, но нужно масштабировать координаты
-      this._scaleX = this.game.canvas.width / this._canvasRect.width;
-      this._scaleY = this.game.canvas.height / this._canvasRect.height;
       this._lastRectUpdate = now;
     }
     
-    const x = (e.clientX - this._canvasRect.left) * this._scaleX;
-    const y = (e.clientY - this._canvasRect.top) * this._scaleY;
+    // Вычисляем координаты клика напрямую (canvas 1:1 с экраном)
+    const x = e.clientX - this._canvasRect.left;
+    const y = e.clientY - this._canvasRect.top;
 
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: БЕЗ сортировки - проверяем все объекты (рендерим по слоям)
     const objects = this.game.objectPool.getActive();
