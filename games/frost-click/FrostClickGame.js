@@ -276,8 +276,10 @@ export class FrostClickGame extends GameBase {
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - обновляем только активные объекты
     const objects = this.objectPool.getActive();
-    const screenHeight = this.renderer ? this.renderer._cachedScreenHeight : window.innerHeight;
-    const maxY = screenHeight + this.SPRITE_SIZE;
+    // Используем реальную высоту canvas (базовую), а не кэшированную
+    const screenHeight = this.canvasBaseHeight || 600;
+    // Объекты должны исчезать только когда полностью уйдут за экран
+    const maxY = screenHeight + this.SPRITE_SIZE * 2;
     
     let objectsMoved = false;
     
