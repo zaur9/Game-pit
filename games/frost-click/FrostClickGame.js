@@ -7,6 +7,7 @@ import { CONFIG } from '../../config.js';
 import { FrostClickRenderer } from './FrostClickRenderer.js';
 import { FrostClickGameLogic } from './FrostClickGameLogic.js';
 import { ObjectPool } from '../../utils/ObjectPool.js';
+import { eventBus } from '../../core/EventBus.js';
 
 export class FrostClickGame extends GameBase {
   constructor() {
@@ -140,6 +141,17 @@ export class FrostClickGame extends GameBase {
     this.spawnAccumulator = 0;
     this.timerAccumulator = 0;
     
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Обновляем размеры canvas при старте игры (1:1 с экраном)
+    if (this.canvas) {
+      const realWidth = window.innerWidth;
+      const realHeight = window.innerHeight;
+      
+      this.canvas.width = realWidth;
+      this.canvas.height = realHeight;
+      this.canvasBaseWidth = realWidth;
+      this.canvasBaseHeight = realHeight;
+    }
+    
     // Первый рендер обязателен
     this.needsRedrawObjects = true;
     this.needsRedrawEffects = false;
@@ -147,7 +159,7 @@ export class FrostClickGame extends GameBase {
     this.needsRedrawFreeze = false;
 
     // Очистка Canvas
-    if (this.ctx) {
+    if (this.ctx && this.canvas) {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
@@ -276,10 +288,11 @@ export class FrostClickGame extends GameBase {
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - обновляем только активные объекты
     const objects = this.objectPool.getActive();
-    // Используем реальную высоту canvas (базовую), а не кэшированную
-    const screenHeight = this.canvasBaseHeight || 600;
+    // Используем реальную высоту canvas - обязательно из canvas
+    const screenHeight = this.canvas ? this.canvas.height : window.innerHeight;
     // Объекты должны исчезать только когда полностью уйдут за экран
-    const maxY = screenHeight + this.SPRITE_SIZE * 2;
+    // Центр объекта должен быть ниже экрана + половина спрайта
+    const maxY = screenHeight + this.SPRITE_SIZE;
     
     let objectsMoved = false;
     
@@ -307,45 +320,58 @@ export class FrostClickGame extends GameBase {
       this.needsRedrawObjects = true;
     }
 
-    // Обновление flash эффектов
+    // Обновление flash эффектов (без splice - используем swap-and-pop)
     if (this.flashEffects.length > 0) {
       const lifeDelta = deltaTime * 1000;
       let hasActive = false;
-      for (let i = this.flashEffects.length - 1; i >= 0; i--) {
+      let writeIdx = 0;
+      
+      for (let i = 0; i < this.flashEffects.length; i++) {
         const flash = this.flashEffects[i];
         flash.life -= lifeDelta;
-        if (flash.life <= 0) {
-          this.flashEffects.splice(i, 1);
-        } else {
+        if (flash.life > 0) {
+          if (writeIdx !== i) {
+            this.flashEffects[writeIdx] = flash;
+          }
+          writeIdx++;
           hasActive = true;
         }
       }
+      this.flashEffects.length = writeIdx;
       this.needsRedrawEffects = hasActive;
     } else {
       this.needsRedrawEffects = false;
     }
 
-    // Обновление эффектов взрыва
+    // Обновление эффектов взрыва (без splice)
     if (this.explosionEffects.length > 0) {
       const lifeDelta = deltaTime * 1000;
       let hasActive = false;
-      for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+      let writeIdx = 0;
+      
+      for (let i = 0; i < this.explosionEffects.length; i++) {
         const explosion = this.explosionEffects[i];
         explosion.life -= lifeDelta;
         explosion.size += explosion.speed * deltaTime;
+        // Движение по углу
+        explosion.x += Math.cos(explosion.angle) * explosion.speed * deltaTime * 0.5;
+        explosion.y += Math.sin(explosion.angle) * explosion.speed * deltaTime * 0.5;
         
-        if (explosion.life <= 0) {
-          this.explosionEffects.splice(i, 1);
-        } else {
+        if (explosion.life > 0) {
+          if (writeIdx !== i) {
+            this.explosionEffects[writeIdx] = explosion;
+          }
+          writeIdx++;
           hasActive = true;
         }
       }
+      this.explosionEffects.length = writeIdx;
       this.needsRedrawEffects = hasActive || this.needsRedrawEffects;
     }
     
     // Бомбы пульсируют - нужен рендер если есть бомбы
-    const hasBombs = objects.some(obj => obj.active && obj.type === 'bomb');
-    if (hasBombs) {
+    // Используем счётчик из ObjectPool вместо .some()
+    if (this.objectPool.hasType('bomb')) {
       this.needsRedrawObjects = true;
     }
   }
@@ -438,5 +464,10 @@ export class FrostClickGame extends GameBase {
     this.onStop();
     this.flashEffects = [];
     this.explosionEffects = [];
+    
+    // Отписываемся от eventBus
+    if (this.logic._onAccountChanged) {
+      eventBus.off('web3:accountChanged', this.logic._onAccountChanged);
+    }
   }
 }
