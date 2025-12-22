@@ -29,9 +29,14 @@ export class GameBase {
    * Инициализация игры (вызывается один раз при загрузке)
    * @param {HTMLElement} container - контейнер для игры
    */
-  init(container) {
+  async init(container) {
     this.container = container;
-    this.onInit();
+    try {
+      await this.onInit();
+    } catch (error) {
+      console.error(`Error initializing game ${this.id}:`, error);
+      throw error;
+    }
   }
 
   /**
