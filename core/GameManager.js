@@ -38,22 +38,39 @@ export class GameManager {
       return;
     }
     
+    console.log(`Registering game: ${game.id} (${game.name})`);
     this.games.set(game.id, game);
-    game.init(this.gameContainer);
     
-    // Добавляем карточку в меню
+    // Добавляем карточку в меню СРАЗУ (до инициализации)
     if (this.mainMenu) {
-      const menuContent = this.mainMenu.querySelector('.games-grid');
+      // Ищем по id, а не по class
+      const menuContent = this.mainMenu.querySelector('#games-grid') || this.mainMenu.querySelector('.games-grid');
       if (menuContent) {
         const card = document.createElement('div');
         card.innerHTML = game.getMenuHTML();
         const gameCard = card.firstElementChild;
-        gameCard.addEventListener('click', () => {
-          this.startGame(game.id);
-        });
-        menuContent.appendChild(gameCard);
+        if (gameCard) {
+          gameCard.addEventListener('click', () => {
+            console.log(`Starting game: ${game.id}`);
+            this.startGame(game.id);
+          });
+          menuContent.appendChild(gameCard);
+          console.log(`Game card added to menu: ${game.id}`);
+        } else {
+          console.error('Failed to create game card element');
+        }
+      } else {
+        console.error('Games grid not found in main menu!', this.mainMenu);
+        console.log('Main menu HTML:', this.mainMenu.innerHTML);
       }
+    } else {
+      console.error('Main menu container is null!');
     }
+    
+    // Инициализация асинхронная, но не блокируем регистрацию
+    game.init(this.gameContainer).catch(error => {
+      console.error(`Failed to initialize game ${game.id}:`, error);
+    });
     
     eventBus.emit('game:registered', { gameId: game.id });
   }
@@ -104,8 +121,14 @@ export class GameManager {
 
     // Инициализируем и запускаем новую игру
     this.currentGame = game;
-    game.init(this.gameContainer);
-    game.start();
+    // Убеждаемся что игра инициализирована перед стартом
+    game.init(this.gameContainer).then(() => {
+      game.start();
+    }).catch(error => {
+      console.error(`Failed to initialize game ${gameId}:`, error);
+      // Возвращаемся в меню при ошибке
+      this.showMainMenu();
+    });
   }
 
   /**
