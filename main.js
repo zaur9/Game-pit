@@ -43,10 +43,13 @@ function toggleMusic() {
 document.addEventListener('DOMContentLoaded', () => {
   // Создаем главное меню
   const mainMenuContainer = document.getElementById('main-menu');
+  if (!mainMenuContainer) return;
+  
   const mainMenu = new MainMenu(mainMenuContainer);
   
   // Создаем контейнер для игр
   const gameContainer = document.getElementById('game-arena-container');
+  if (!gameContainer) return;
   
   // Инициализируем GameManager
   gameManager.init(gameContainer, mainMenuContainer);
