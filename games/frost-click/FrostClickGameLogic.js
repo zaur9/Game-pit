@@ -16,7 +16,7 @@ export class FrostClickGameLogic {
   createUI() {
     if (!this.game.container) return;
 
-    // Создаем Canvas с оптимизациями
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированный внутренний resolution canvas
     this.game.canvas = document.createElement('canvas');
     this.game.canvas.id = 'fc-canvas';
     this.game.canvas.style.position = 'absolute';
@@ -26,16 +26,29 @@ export class FrostClickGameLogic {
     this.game.canvas.style.height = '100%';
     this.game.canvas.style.zIndex = '1';
     this.game.canvas.style.imageRendering = 'crisp-edges';
-    this.game.canvas.width = window.innerWidth;
-    this.game.canvas.height = window.innerHeight;
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение для одинакового FPS на всех экранах
+    const BASE_WIDTH = 800;
+    const BASE_HEIGHT = 600;
+    const SCALE = window.devicePixelRatio > 1 ? 1.5 : 1;
+    
+    this.game.canvas.width = BASE_WIDTH * SCALE;
+    this.game.canvas.height = BASE_HEIGHT * SCALE;
+    this.game.canvasScale = SCALE;
+    this.game.canvasBaseWidth = BASE_WIDTH;
+    this.game.canvasBaseHeight = BASE_HEIGHT;
+    
     this.game.ctx = this.game.canvas.getContext('2d', {
       alpha: true,
       desynchronized: true,
-      willReadFrequently: false // Оптимизация: не читаем пиксели обратно
+      willReadFrequently: false
     });
     
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Масштабируем контекст
+    this.game.ctx.scale(SCALE, SCALE);
+    
     // Оптимизация: отключаем сглаживание для лучшей производительности
-    this.game.ctx.imageSmoothingEnabled = false; // Быстрее, но менее сглажено
+    this.game.ctx.imageSmoothingEnabled = false;
     
     this.game.container.appendChild(this.game.canvas);
 
@@ -152,18 +165,8 @@ export class FrostClickGameLogic {
     });
     this.game.container.appendChild(backBtn);
 
-    // Обработка изменения размера окна
-    let resizeTimeout;
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        if (this.game.canvas) {
-          this.game.canvas.width = window.innerWidth;
-          this.game.canvas.height = window.innerHeight;
-          this.game.needsRedraw = true;
-        }
-      }, 100);
-    });
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение - resize не нужен
+    // Canvas всегда одного размера, масштабируется через CSS
 
     // Обновление текста кнопки Connect Wallet при изменении аккаунта
     this.updateConnectWalletButton();
@@ -227,11 +230,12 @@ export class FrostClickGameLogic {
 
   /**
    * Спавн объектов
+   * ИДЕАЛЬНАЯ АРХИТЕКТУРА: Вызывается из RAF-цикла через deltaTime
    */
   spawnTick() {
     if (!this.game.isActive || this.game.isPaused || this.game.isFrozen) return;
 
-    const now = Date.now();
+    const now = performance.now();
 
     // Ice spawn
     if (now - this.game.lastIceSpawn >= this.game.ICE_INTERVAL) {
@@ -240,7 +244,7 @@ export class FrostClickGameLogic {
     }
 
     // Somnia spawn
-    const elapsed = Date.now() - this.game.startTime - this.game.pausedAccum;
+    const elapsed = now - this.game.startTime - this.game.pausedAccum;
     if (this.game.nextSomniaIndex < this.game.somniaSchedule.length &&
         elapsed >= this.game.somniaSchedule[this.game.nextSomniaIndex]) {
       this.createObject('somnia', 50 + Math.random() * 20);
@@ -261,21 +265,33 @@ export class FrostClickGameLogic {
 
   /**
    * Создание нового объекта
+   * ИДЕАЛЬНАЯ АРХИТЕКТУРА: Использует Object Pool
    */
   createObject(type, speed) {
     if (!this.game.isActive || this.game.isPaused) return;
     
-    // Оптимизация: ограничиваем количество объектов на экране
-    if (this.game.objects.length >= this.game.MAX_OBJECTS_ON_SCREEN) {
-      // Удаляем самый старый объект (первый в массиве)
-      this.game.objects.shift();
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - ограничиваем количество объектов
+    const activeCount = this.game.objectPool.getActiveCount();
+    if (activeCount >= this.game.MAX_OBJECTS_ON_SCREEN) {
+      // Удаляем самый старый объект (первый в массиве активных)
+      const objects = this.game.objectPool.getActive();
+      if (objects.length > 0) {
+        this.game.objectPool.release(objects[0]);
+      }
     }
 
     const x = Math.random() * (window.innerWidth - this.game.SPRITE_SIZE) + this.game.SPRITE_SIZE / 2;
     const y = -this.game.SPRITE_SIZE;
 
-    this.game.objects.push({ type, x, y, speed });
-    this.game.needsRedraw = true;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - получаем объект из пула
+    const obj = this.game.objectPool.acquire();
+    obj.type = type;
+    obj.x = x;
+    obj.y = y;
+    obj.speed = speed;
+    
+    // Новый объект = нужен рендер
+    this.game.needsRedrawObjects = true;
   }
 
   /**
@@ -291,169 +307,99 @@ export class FrostClickGameLogic {
     }
     this.game.lastClickTime = now;
 
-    // Получаем координаты клика относительно Canvas
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение - масштабируем координаты
     // Оптимизация: кэшируем getBoundingClientRect (дорогая операция)
     if (!this._canvasRect || now - this._lastRectUpdate > 1000) {
       this._canvasRect = this.game.canvas.getBoundingClientRect();
-      this._scaleX = this.game.canvas.width / this._canvasRect.width;
-      this._scaleY = this.game.canvas.height / this._canvasRect.height;
+      this._scaleX = this.game.canvasBaseWidth / this._canvasRect.width;
+      this._scaleY = this.game.canvasBaseHeight / this._canvasRect.height;
       this._lastRectUpdate = now;
     }
     
     const x = (e.clientX - this._canvasRect.left) * this._scaleX;
     const y = (e.clientY - this._canvasRect.top) * this._scaleY;
 
-    // Оптимизация: для малого количества объектов не сортируем
-    const objects = this.game.objects;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: БЕЗ сортировки - проверяем все объекты (рендерим по слоям)
+    const objects = this.game.objectPool.getActive();
     const objCount = objects.length;
     if (objCount === 0) return;
     
-    // Оптимизация: для большого количества объектов сортируем, для малого - обратный цикл
-    if (objCount > 20) {
-      // Для большого количества - создаем отсортированный массив
-      if (!this._clickObjectsCache || this._clickObjectsCache.length !== objCount) {
-        this._clickObjectsCache = new Array(objCount);
-      }
-      for (let i = 0; i < objCount; i++) {
-        this._clickObjectsCache[i] = { obj: objects[i], index: i };
-      }
-      this._clickObjectsCache.sort((a, b) => b.obj.y - a.obj.y);
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Обратный цикл для проверки клика (сверху вниз)
+    for (let i = objCount - 1; i >= 0; i--) {
+      const obj = objects[i];
+      if (!obj.active) continue;
       
-      for (let i = 0; i < objCount; i++) {
-        const { obj, index: idx } = this._clickObjectsCache[i];
-        const halfSize = this.game.SPRITE_SIZE / 2;
-        const hitPadding = this.game.HIT_PADDING;
-        const objX = obj.x;
-        const objY = obj.y;
+      const halfSize = this.game.SPRITE_SIZE / 2;
+      const hitPadding = this.game.HIT_PADDING;
+      const objX = obj.x;
+      const objY = obj.y;
+      
+      const dx = x - objX;
+      const dy = y - objY;
+      
+      if (Math.abs(dx) <= halfSize && dy >= -halfSize - hitPadding && dy <= halfSize) {
+        const type = obj.type;
         
-        // Оптимизация: быстрая проверка границ
-        const dx = x - objX;
-        const dy = y - objY;
+        // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - освобождаем объект
+        this.game.objectPool.release(obj);
+        this.game.needsRedrawObjects = true;
+        this.game.createFlash(objX, objY);
         
-        if (Math.abs(dx) <= halfSize && dy >= -halfSize - hitPadding && dy <= halfSize) {
-          const type = obj.type;
-
-          // Удаление объекта (используем индекс из отсортированного массива)
-          this.game.objects.splice(idx, 1);
-          this.game.needsRedraw = true;
-
-          // Flash эффект
-          this.game.createFlash(objX, objY);
-
-          // Freeze bonus
-          if (this.game.isFrozen) {
-            if (type === 'snow') this.game.addScore(1);
-            else if (type === 'bomb') this.game.addScore(3);
-            else if (type === 'gift') this.game.addScore(5);
-            else if (type === 'ice') this.game.addScore(2);
-            else if (type === 'somnia') this.game.addScore(100);
-            return;
-          }
-
-          if (type === 'bomb') {
-            // Создаем эффект взрыва перед завершением игры
-            this.game.createExplosion(objX, objY);
-            // Небольшая задержка для показа взрыва
-            setTimeout(() => {
-              this.endGame(false);
-            }, 300);
-            return;
-          }
-
-          if (type === 'ice') {
-            this.activateFreeze();
-            this.game.addScore(2);
-          } else if (type === 'somnia') {
-            this.game.addScore(100);
-          } else if (type === 'gift') {
-            this.game.addScore(5);
-          } else {
-            this.game.addScore(1);
-          }
+        if (this.game.isFrozen) {
+          if (type === 'snow') this.game.addScore(1);
+          else if (type === 'bomb') this.game.addScore(3);
+          else if (type === 'gift') this.game.addScore(5);
+          else if (type === 'ice') this.game.addScore(2);
+          else if (type === 'somnia') this.game.addScore(100);
           return;
         }
-      }
-    } else {
-      // Для малого количества объектов - обратный цикл без сортировки (быстрее)
-      for (let i = objCount - 1; i >= 0; i--) {
-        const obj = objects[i];
-        const halfSize = this.game.SPRITE_SIZE / 2;
-        const hitPadding = this.game.HIT_PADDING;
-        const objX = obj.x;
-        const objY = obj.y;
-        
-        const dx = x - objX;
-        const dy = y - objY;
-        
-        if (Math.abs(dx) <= halfSize && dy >= -halfSize - hitPadding && dy <= halfSize) {
-          const type = obj.type;
-          this.game.objects.splice(i, 1);
-          this.game.needsRedraw = true;
-          this.game.createFlash(objX, objY);
-          
-          if (this.game.isFrozen) {
-            if (type === 'snow') this.game.addScore(1);
-            else if (type === 'bomb') this.game.addScore(3);
-            else if (type === 'gift') this.game.addScore(5);
-            else if (type === 'ice') this.game.addScore(2);
-            else if (type === 'somnia') this.game.addScore(100);
-            return;
-          }
 
-          if (type === 'bomb') {
-            this.game.createExplosion(objX, objY);
-            setTimeout(() => this.endGame(false), 300);
-            return;
-          }
-
-          if (type === 'ice') {
-            this.activateFreeze();
-            this.game.addScore(2);
-          } else if (type === 'somnia') {
-            this.game.addScore(100);
-          } else if (type === 'gift') {
-            this.game.addScore(5);
-          } else {
-            this.game.addScore(1);
-          }
+        if (type === 'bomb') {
+          this.game.createExplosion(objX, objY);
+          setTimeout(() => this.endGame(false), 300);
           return;
         }
+
+        if (type === 'ice') {
+          this.activateFreeze();
+          this.game.addScore(2);
+        } else if (type === 'somnia') {
+          this.game.addScore(100);
+        } else if (type === 'gift') {
+          this.game.addScore(5);
+        } else {
+          this.game.addScore(1);
+        }
+        return;
       }
     }
   }
 
   /**
    * Активация эффекта заморозки
+   * ИДЕАЛЬНАЯ АРХИТЕКТУРА: Freeze через RAF, без setInterval
    */
   activateFreeze() {
     if (this.game.isFrozen) return;
 
     this.game.isFrozen = true;
+    this.game.freezeTimeLeft = 5.0; // 5 секунд
 
-    // Freeze timer
-    this.game.freezeTimer = document.createElement('div');
-    this.game.freezeTimer.id = 'fc-freeze-timer';
-    Object.assign(this.game.freezeTimer.style, {
-      position: 'absolute', top: '50px', right: '20px',
-      color: '#a0e0ff', fontSize: '20px', zIndex: '10',
-      textShadow: '0 0 10px rgba(160, 224, 255, 0.8)'
-    });
+    // Freeze timer UI
+    if (!this.game.freezeTimer) {
+      this.game.freezeTimer = document.createElement('div');
+      this.game.freezeTimer.id = 'fc-freeze-timer';
+      Object.assign(this.game.freezeTimer.style, {
+        position: 'absolute', top: '50px', right: '20px',
+        color: '#a0e0ff', fontSize: '20px', zIndex: '10',
+        textShadow: '0 0 10px rgba(160, 224, 255, 0.8)'
+      });
+      this.game.container.appendChild(this.game.freezeTimer);
+    }
     this.game.freezeTimer.textContent = 'Freeze: 5s';
-    this.game.container.appendChild(this.game.freezeTimer);
-
-    let timeLeft = 5;
-    const countdown = setInterval(() => {
-      timeLeft--;
-
-      if (timeLeft > 0) {
-        this.game.freezeTimer.textContent = `Freeze: ${timeLeft}s`;
-      } else {
-        clearInterval(countdown);
-        this.game.freezeTimer.remove();
-        this.game.freezeTimer = null;
-        this.game.isFrozen = false;
-      }
-    }, 1000);
+    this.game.needsRedrawFreeze = true;
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Убран setInterval - управляется через RAF в update()
   }
 
   /**
@@ -462,10 +408,9 @@ export class FrostClickGameLogic {
   endGame(isWin) {
     this.game.isActive = false;
 
-    if (this.game.timerInterval) clearInterval(this.game.timerInterval);
-    if (this.game.spawnIntervalId) clearInterval(this.game.spawnIntervalId);
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Убраны все clearInterval - больше не используются
 
-    const elapsed = Date.now() - this.game.startTime - this.game.pausedAccum;
+    const elapsed = performance.now() - this.game.startTime - this.game.pausedAccum;
 
     if (this.game.resultTitle) {
       this.game.resultTitle.textContent = isWin
