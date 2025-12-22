@@ -7,6 +7,14 @@ export class FrostClickRenderer {
     this.game = game;
     this.emojiSprites = new Map();
     this.emojiLoaded = false;
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение - используем базовые размеры
+    this._cachedScreenWidth = 800; // BASE_WIDTH
+    this._cachedScreenHeight = 600; // BASE_HEIGHT
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Предрендер эффектов
+    this.effectSprites = new Map(); // Кэш предрендеренных эффектов
+    this._effectSpritesLoaded = false;
   }
 
   /**
@@ -78,21 +86,121 @@ export class FrostClickRenderer {
     });
 
     this.emojiLoaded = true;
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Предрендер эффектов в offscreen canvas
+    await this.preRenderEffects();
+  }
+  
+  /**
+   * ИДЕАЛЬНАЯ АРХИТЕКТУРА: Предрендер эффектов (flash, explosion)
+   * Градиенты создаются один раз, не в runtime
+   */
+  async preRenderEffects() {
+    // Flash эффект - предрендерим несколько кадров
+    const flashFrames = 10;
+    const flashSize = 80;
+    const flashCanvas = document.createElement('canvas');
+    flashCanvas.width = flashSize * 2;
+    flashCanvas.height = flashSize * 2;
+    const flashCtx = flashCanvas.getContext('2d');
+    
+    for (let frame = 0; frame < flashFrames; frame++) {
+      const lifeRatio = frame / flashFrames;
+      const alpha = 1 - lifeRatio;
+      const size = lifeRatio * flashSize;
+      
+      if (size < 1) continue;
+      
+      flashCtx.clearRect(0, 0, flashCanvas.width, flashCanvas.height);
+      flashCtx.globalAlpha = alpha;
+      
+      const gradient = flashCtx.createRadialGradient(
+        flashSize, flashSize, 0,
+        flashSize, flashSize, size
+      );
+      gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
+      gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
+      gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
+      
+      flashCtx.fillStyle = gradient;
+      flashCtx.beginPath();
+      flashCtx.arc(flashSize, flashSize, size, 0, Math.PI * 2);
+      flashCtx.fill();
+      
+      // Сохраняем кадр
+      const frameCanvas = document.createElement('canvas');
+      frameCanvas.width = flashCanvas.width;
+      frameCanvas.height = flashCanvas.height;
+      const frameCtx = frameCanvas.getContext('2d');
+      frameCtx.drawImage(flashCanvas, 0, 0);
+      
+      this.effectSprites.set(`flash_${frame}`, {
+        canvas: frameCanvas,
+        size: size,
+        alpha: alpha
+      });
+    }
+    
+    // Explosion эффект - предрендерим несколько кадров
+    const explosionFrames = 15;
+    const explosionMaxSize = 100;
+    const explosionCanvas = document.createElement('canvas');
+    explosionCanvas.width = explosionMaxSize * 2;
+    explosionCanvas.height = explosionMaxSize * 2;
+    const explosionCtx = explosionCanvas.getContext('2d');
+    
+    for (let frame = 0; frame < explosionFrames; frame++) {
+      const lifeRatio = frame / explosionFrames;
+      const alpha = 1 - lifeRatio;
+      const size = lifeRatio * explosionMaxSize;
+      
+      if (size < 1) continue;
+      
+      explosionCtx.clearRect(0, 0, explosionCanvas.width, explosionCanvas.height);
+      explosionCtx.globalAlpha = alpha * 0.8;
+      
+      const gradient = explosionCtx.createRadialGradient(
+        explosionMaxSize, explosionMaxSize, 0,
+        explosionMaxSize, explosionMaxSize, size * 0.5
+      );
+      gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
+      gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
+      gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
+      gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
+      
+      explosionCtx.fillStyle = gradient;
+      explosionCtx.beginPath();
+      explosionCtx.arc(explosionMaxSize, explosionMaxSize, size * 0.5, 0, Math.PI * 2);
+      explosionCtx.fill();
+      
+      // Сохраняем кадр
+      const frameCanvas = document.createElement('canvas');
+      frameCanvas.width = explosionCanvas.width;
+      frameCanvas.height = explosionCanvas.height;
+      const frameCtx = frameCanvas.getContext('2d');
+      frameCtx.drawImage(explosionCanvas, 0, 0);
+      
+      this.effectSprites.set(`explosion_${frame}`, {
+        canvas: frameCanvas,
+        size: size,
+        alpha: alpha
+      });
+    }
+    
+    this._effectSpritesLoaded = true;
   }
 
   /**
-   * Рендеринг игрового поля на Canvas
+   * ИДЕАЛЬНАЯ АРХИТЕКТУРА: Рендеринг с фиксированным разрешением
+   * Условный рендер: только если needsRedrawObjects/Effects/Freeze
+   * БЕЗ сортировки: z-index по типам (слои)
    */
   render() {
     if (!this.game.ctx || !this.emojiLoaded) return;
     
-    // Кэшируем Date.now() один раз за кадр
-    const now = Date.now();
-    const pulseValue = Math.sin(now / 200) * 0.3 + 0.7;
-    
-    // Кэшируем размеры экрана для оптимизации проверок видимости
-    const screenHeight = window.innerHeight;
-    const screenWidth = window.innerWidth;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение
+    const screenHeight = this._cachedScreenHeight;
+    const screenWidth = this._cachedScreenWidth;
     const spriteSize = this.game.SPRITE_SIZE;
     const halfSpriteSize = spriteSize / 2;
     const minY = -spriteSize;
@@ -100,82 +208,104 @@ export class FrostClickRenderer {
     const minX = -spriteSize;
     const maxX = screenWidth + spriteSize;
 
-    // Очистка Canvas
-    this.game.ctx.clearRect(0, 0, this.game.canvas.width, this.game.canvas.height);
+    // Очистка Canvas (вызывается только при needsRedraw = true)
+    this.game.ctx.clearRect(0, 0, this.game.canvasBaseWidth, this.game.canvasBaseHeight);
 
-    // Оптимизация: сортируем только если объектов много и только при необходимости
-    // И только если изменился порядок (проверяем по первому и последнему объекту)
-    const objects = this.game.objects;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: БЕЗ сортировки - рендерим по слоям (z-index по типам)
+    const objects = this.game.objectPool.getActive();
     const objCount = objects.length;
     
-    // Оптимизация: сортируем только если нужно (проверяем, отсортирован ли массив)
-    if (objCount > 10) {
-      let needsSort = false;
-      // Быстрая проверка: если первый объект выше последнего, нужна сортировка
-      if (objCount > 1 && objects[0].y > objects[objCount - 1].y) {
-        needsSort = true;
-      }
-      if (needsSort) {
-        objects.sort((a, b) => a.y - b.y);
-      }
-    }
-    
-    // Оптимизация: используем предварительно выделенные массивы (переиспользование памяти)
-    // Очищаем массивы вместо создания новых
-    if (!this._visibleObjects) {
-      this._visibleObjects = [];
-      this._visibleBombs = [];
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Разделяем объекты по типам для слоев
+    if (!this._layerObjects) {
+      this._layerObjects = {
+        snow: [],
+        gift: [],
+        ice: [],
+        somnia: [],
+        bomb: []
+      };
     } else {
-      this._visibleObjects.length = 0;
-      this._visibleBombs.length = 0;
+      // Очищаем слои
+      for (const key in this._layerObjects) {
+        this._layerObjects[key].length = 0;
+      }
     }
     
-    // Фильтруем только видимые объекты (оптимизация рендеринга)
-    // Оптимизация: используем более быстрые проверки
+    // Фильтруем видимые объекты и распределяем по слоям
     for (let i = 0; i < objCount; i++) {
       const obj = objects[i];
+      if (!obj.active) continue;
+      
       const objY = obj.y;
       const objX = obj.x;
       
-      // Оптимизация: быстрая проверка видимости (избегаем лишних проверок)
+      // Проверка видимости
       if (objY > minY && objY < maxY && objX > minX && objX < maxX) {
-        if (obj.type === 'bomb') {
-          this._visibleBombs.push(obj);
-        } else {
-          this._visibleObjects.push(obj);
+        if (this._layerObjects[obj.type]) {
+          this._layerObjects[obj.type].push(obj);
         }
       }
     }
     
-    // Рендерим обычные объекты (включая Somnia без эффектов) - только видимые
-    const visibleCount = this._visibleObjects.length;
-    for (let i = 0; i < visibleCount; i++) {
-      const obj = this._visibleObjects[i];
-      const sprite = this.emojiSprites.get(obj.type);
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Рендерим по слоям (z-index: snow < gift < ice < somnia < bomb)
+    // Слой 1: Snow
+    const snowCount = this._layerObjects.snow.length;
+    for (let i = 0; i < snowCount; i++) {
+      const obj = this._layerObjects.snow[i];
+      const sprite = this.emojiSprites.get('snow');
       if (sprite && sprite.canvas) {
-        // Кэшируем вычисления позиции
         this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
       }
     }
     
-    // Рендерим бомбы с пульсацией (используем кэшированное значение) - только видимые
-    const bombCount = this._visibleBombs.length;
+    // Слой 2: Gift
+    const giftCount = this._layerObjects.gift.length;
+    for (let i = 0; i < giftCount; i++) {
+      const obj = this._layerObjects.gift[i];
+      const sprite = this.emojiSprites.get('gift');
+      if (sprite && sprite.canvas) {
+        this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
+      }
+    }
+    
+    // Слой 3: Ice
+    const iceCount = this._layerObjects.ice.length;
+    for (let i = 0; i < iceCount; i++) {
+      const obj = this._layerObjects.ice[i];
+      const sprite = this.emojiSprites.get('ice');
+      if (sprite && sprite.canvas) {
+        this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
+      }
+    }
+    
+    // Слой 4: Somnia
+    const somniaCount = this._layerObjects.somnia.length;
+    for (let i = 0; i < somniaCount; i++) {
+      const obj = this._layerObjects.somnia[i];
+      const sprite = this.emojiSprites.get('somnia');
+      if (sprite && sprite.canvas) {
+        this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
+      }
+    }
+    
+    // Слой 5: Bomb (с пульсацией)
+    const bombCount = this._layerObjects.bomb.length;
     if (bombCount > 0) {
+      const now = Date.now();
+      const pulseValue = Math.sin(now / 200) * 0.3 + 0.7;
+      
       this.game.ctx.save();
-      // Прозрачность убрана - бомба полностью непрозрачна
-      // Оптимизация: уменьшаем shadowBlur для лучшей производительности
-      this.game.ctx.shadowBlur = 15; // Уменьшено с 25 для производительности
+      this.game.ctx.shadowBlur = 15;
       this.game.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
       this.game.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
       
       const bombRadius = this.game.OBJECT_SIZE / 2 + 5;
       for (let i = 0; i < bombCount; i++) {
-        const obj = this._visibleBombs[i];
-        const sprite = this.emojiSprites.get(obj.type);
+        const obj = this._layerObjects.bomb[i];
+        const sprite = this.emojiSprites.get('bomb');
         if (sprite && sprite.canvas) {
           this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
         }
-        // Рисуем круг свечения (объект уже проверен на видимость)
         this.game.ctx.beginPath();
         this.game.ctx.arc(obj.x, obj.y, bombRadius, 0, Math.PI * 2);
         this.game.ctx.fill();
@@ -183,140 +313,79 @@ export class FrostClickRenderer {
       this.game.ctx.restore();
     }
 
-    // Flash эффекты (временные вспышки при клике)
-    // Оптимизация: рендерим только активные flash эффекты и ограничиваем их количество
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Предрендеренные flash эффекты
     const flashCount = this.game.flashEffects.length;
-    if (flashCount > 0) {
+    if (flashCount > 0 && this._effectSpritesLoaded) {
       this.game.ctx.save();
-      // Кэшируем константы для вычислений
       const maxLife = 250;
-      const maxSize = 80;
-      const invMaxLife = 1 / maxLife;
       
       for (let i = 0; i < flashCount; i++) {
         const flash = this.game.flashEffects[i];
         if (flash.life > 0) {
-          const lifeRatio = flash.life * invMaxLife; // Оптимизация: умножение вместо деления
-          const alpha = lifeRatio; // lifeRatio уже <= 1
-          const size = (1 - lifeRatio) * maxSize;
+          const lifeRatio = flash.life / maxLife;
+          const frame = Math.floor((1 - lifeRatio) * 10);
           
-          // Оптимизация: пропускаем слишком маленькие или невидимые эффекты
-          if (size < 1 || alpha < 0.01) continue;
-          
-          // Оптимизация: проверка видимости flash эффекта
-          const flashX = flash.x;
-          const flashY = flash.y;
-          if (flashX < -size || flashX > maxX ||
-              flashY < -size || flashY > maxY) {
-            continue; // Пропускаем невидимые эффекты
+          if (frame < 10) {
+            const sprite = this.effectSprites.get(`flash_${frame}`);
+            if (sprite) {
+              const flashX = flash.x;
+              const flashY = flash.y;
+              
+              // Проверка видимости
+              if (flashX > -sprite.size && flashX < maxX + sprite.size &&
+                  flashY > -sprite.size && flashY < maxY + sprite.size) {
+                this.game.ctx.globalAlpha = sprite.alpha;
+                this.game.ctx.drawImage(
+                  sprite.canvas,
+                  flashX - sprite.size,
+                  flashY - sprite.size
+                );
+              }
+            }
           }
-          
-          this.game.ctx.globalAlpha = alpha;
-          // Оптимизация: переиспользуем градиент если возможно, иначе создаем новый
-          if (!flash._gradient || flash._size !== size) {
-            flash._gradient = this.game.ctx.createRadialGradient(
-              flashX, flashY, 0,
-              flashX, flashY, size
-            );
-            flash._gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
-            flash._gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
-            flash._gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
-            flash._size = size;
-          }
-          this.game.ctx.fillStyle = flash._gradient;
-          this.game.ctx.beginPath();
-          this.game.ctx.arc(flashX, flashY, size, 0, Math.PI * 2);
-          this.game.ctx.fill();
         }
       }
       this.game.ctx.restore();
     }
 
-    // Эффекты взрыва (при клике на бомбе)
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Предрендеренные explosion эффекты
     const explosionCount = this.game.explosionEffects.length;
-    if (explosionCount > 0) {
+    if (explosionCount > 0 && this._effectSpritesLoaded) {
       this.game.ctx.save();
       
       for (let i = 0; i < explosionCount; i++) {
         const explosion = this.game.explosionEffects[i];
         if (explosion.life > 0) {
-          const invMaxLife = 1 / explosion.maxLife;
-          const alpha = explosion.life * invMaxLife; // Уже <= 1
-          const progress = 1 - alpha;
+          const lifeRatio = explosion.life / explosion.maxLife;
+          const frame = Math.floor((1 - lifeRatio) * 15);
           
-          const expX = explosion.x;
-          const expY = explosion.y;
-          const expSize = explosion.size;
-          const expAngle = explosion.angle;
-          
-          // Центральная вспышка взрыва (кэшируем вычисления)
-          const cosAngle = Math.cos(expAngle);
-          const sinAngle = Math.sin(expAngle);
-          const centerX = expX + cosAngle * expSize * 0.3;
-          const centerY = expY + sinAngle * expSize * 0.3;
-          
-          // Основной огненный шар
-          // Оптимизация: переиспользуем градиент
-          if (!explosion._gradient || explosion._size !== expSize) {
-            explosion._gradient = this.game.ctx.createRadialGradient(
-              expX, expY, 0,
-              expX, expY, expSize * 0.5
-            );
-            explosion._gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
-            explosion._gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
-            explosion._gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
-            explosion._gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
-            explosion._size = expSize;
-          }
-          
-          this.game.ctx.globalAlpha = alpha * 0.8;
-          this.game.ctx.fillStyle = explosion._gradient;
-          this.game.ctx.beginPath();
-          this.game.ctx.arc(expX, expY, expSize * 0.5, 0, Math.PI * 2);
-          this.game.ctx.fill();
-          
-          // Частицы взрыва (летящие искры)
-          this.game.ctx.globalAlpha = alpha;
-          // Оптимизация: кэшируем цвет
-          const sparkColor = `rgba(255, ${200 - Math.floor(progress * 100)}, 0, ${alpha})`;
-          this.game.ctx.fillStyle = sparkColor;
-          this.game.ctx.beginPath();
-          this.game.ctx.arc(centerX, centerY, 3 + progress * 5, 0, Math.PI * 2);
-          this.game.ctx.fill();
-          
-          // Дополнительные искры (оптимизация: меньше искр или кэшируем позиции)
-          // Оптимизация: используем предвычисленные углы вместо Math.random каждый кадр
-          if (!explosion._sparks) {
-            explosion._sparks = [];
-            for (let j = 0; j < 3; j++) {
-              explosion._sparks.push({
-                angle: expAngle + (Math.random() - 0.5) * 0.5,
-                dist: 0.3 + Math.random() * 0.4
-              });
+          if (frame < 15) {
+            const sprite = this.effectSprites.get(`explosion_${frame}`);
+            if (sprite) {
+              const expX = explosion.x;
+              const expY = explosion.y;
+              
+              // Проверка видимости
+              if (expX > -sprite.size && expX < maxX + sprite.size &&
+                  expY > -sprite.size && expY < maxY + sprite.size) {
+                this.game.ctx.globalAlpha = sprite.alpha * 0.8;
+                this.game.ctx.drawImage(
+                  sprite.canvas,
+                  expX - sprite.size,
+                  expY - sprite.size
+                );
+              }
             }
-          }
-          
-          for (let j = 0; j < 3; j++) {
-            const spark = explosion._sparks[j];
-            const sparkDist = expSize * spark.dist;
-            const sparkX = expX + Math.cos(spark.angle) * sparkDist;
-            const sparkY = expY + Math.sin(spark.angle) * sparkDist;
-            
-            this.game.ctx.globalAlpha = alpha * 0.6;
-            this.game.ctx.fillStyle = `rgba(255, ${150 - Math.floor(progress * 50)}, 0, ${alpha * 0.8})`;
-            this.game.ctx.beginPath();
-            this.game.ctx.arc(sparkX, sparkY, 2 + progress * 3, 0, Math.PI * 2);
-            this.game.ctx.fill();
           }
         }
       }
       this.game.ctx.restore();
     }
 
-    // Freeze overlay (если активен)
-    if (this.game.isFrozen) {
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Freeze overlay (если активен)
+    if (this.game.needsRedrawFreeze && this.game.isFrozen) {
       this.game.ctx.fillStyle = 'rgba(200, 240, 255, 0.3)';
-      this.game.ctx.fillRect(0, 0, this.game.canvas.width, this.game.canvas.height);
+      this.game.ctx.fillRect(0, 0, this.game.canvasBaseWidth, this.game.canvasBaseHeight);
     }
   }
 
