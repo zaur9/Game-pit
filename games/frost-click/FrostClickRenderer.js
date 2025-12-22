@@ -251,43 +251,19 @@ export class FrostClickRenderer {
       }
     }
     
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Рендерим по слоям (z-index: snow < gift < ice < somnia < bomb)
-    // Слой 1: Snow
-    const snowCount = this._layerObjects.snow.length;
-    for (let i = 0; i < snowCount; i++) {
-      const obj = this._layerObjects.snow[i];
-      const sprite = this.emojiSprites.get('snow');
-      if (sprite && sprite.canvas) {
-        this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
-      }
-    }
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Рендерим по слоям (унифицированный код)
+    const layerOrder = ['snow', 'gift', 'ice', 'somnia'];
     
-    // Слой 2: Gift
-    const giftCount = this._layerObjects.gift.length;
-    for (let i = 0; i < giftCount; i++) {
-      const obj = this._layerObjects.gift[i];
-      const sprite = this.emojiSprites.get('gift');
-      if (sprite && sprite.canvas) {
-        this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
-      }
-    }
-    
-    // Слой 3: Ice
-    const iceCount = this._layerObjects.ice.length;
-    for (let i = 0; i < iceCount; i++) {
-      const obj = this._layerObjects.ice[i];
-      const sprite = this.emojiSprites.get('ice');
-      if (sprite && sprite.canvas) {
-        this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
-      }
-    }
-    
-    // Слой 4: Somnia
-    const somniaCount = this._layerObjects.somnia.length;
-    for (let i = 0; i < somniaCount; i++) {
-      const obj = this._layerObjects.somnia[i];
-      const sprite = this.emojiSprites.get('somnia');
-      if (sprite && sprite.canvas) {
+    for (const layerType of layerOrder) {
+      const layerObjects = this._layerObjects[layerType];
+      const count = layerObjects.length;
+      if (count === 0) continue;
+      
+      const sprite = this.emojiSprites.get(layerType);
+      if (!sprite || !sprite.canvas) continue;
+      
+      for (let i = 0; i < count; i++) {
+        const obj = layerObjects[i];
         this.game.ctx.drawImage(sprite.canvas, obj.x - halfSpriteSize, obj.y - halfSpriteSize);
       }
     }
@@ -389,7 +365,7 @@ export class FrostClickRenderer {
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Freeze overlay (если активен)
     if (this.game.needsRedrawFreeze && this.game.isFrozen) {
       this.game.ctx.fillStyle = 'rgba(200, 240, 255, 0.3)';
-      this.game.ctx.fillRect(0, 0, this.game.canvasBaseWidth, this.game.canvasBaseHeight);
+      this.game.ctx.fillRect(0, 0, screenWidth, screenHeight);
     }
   }
 
