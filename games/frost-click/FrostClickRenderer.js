@@ -8,9 +8,9 @@ export class FrostClickRenderer {
     this.emojiSprites = new Map();
     this.emojiLoaded = false;
     
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение - используем базовые размеры
-    this._cachedScreenWidth = 800; // BASE_WIDTH
-    this._cachedScreenHeight = 600; // BASE_HEIGHT
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Используем реальные размеры canvas
+    this._cachedScreenWidth = 0;
+    this._cachedScreenHeight = 0;
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Предрендер эффектов
     this.effectSprites = new Map(); // Кэш предрендеренных эффектов
@@ -198,9 +198,13 @@ export class FrostClickRenderer {
   render() {
     if (!this.game.ctx || !this.emojiLoaded) return;
     
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение
-    const screenHeight = this._cachedScreenHeight;
-    const screenWidth = this._cachedScreenWidth;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Используем реальные размеры canvas
+    const screenHeight = this.game.canvasBaseHeight || this.game.canvas.height;
+    const screenWidth = this.game.canvasBaseWidth || this.game.canvas.width;
+    
+    // Обновляем кэш
+    this._cachedScreenWidth = screenWidth;
+    this._cachedScreenHeight = screenHeight;
     const spriteSize = this.game.SPRITE_SIZE;
     const halfSpriteSize = spriteSize / 2;
     const minY = -spriteSize;
@@ -209,7 +213,7 @@ export class FrostClickRenderer {
     const maxX = screenWidth + spriteSize;
 
     // Очистка Canvas (вызывается только при needsRedraw = true)
-    this.game.ctx.clearRect(0, 0, this.game.canvasBaseWidth, this.game.canvasBaseHeight);
+    this.game.ctx.clearRect(0, 0, screenWidth, screenHeight);
 
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: БЕЗ сортировки - рендерим по слоям (z-index по типам)
     const objects = this.game.objectPool.getActive();
