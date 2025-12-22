@@ -6,6 +6,7 @@ import { GameBase } from '../../core/GameBase.js';
 import { CONFIG } from '../../config.js';
 import { FrostClickRenderer } from './FrostClickRenderer.js';
 import { FrostClickGameLogic } from './FrostClickGameLogic.js';
+import { ObjectPool } from '../../utils/ObjectPool.js';
 
 export class FrostClickGame extends GameBase {
   constructor() {
@@ -28,16 +29,25 @@ export class FrostClickGame extends GameBase {
     this.pausedAccum = 0;
     this.pauseStart = null;
 
-    // Таймеры
-    this.timerInterval = null;
-    this.spawnIntervalId = null;
-
-    // Spawn настройки
-    this.SPAWN_TICK_MS = 150;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Один RAF-цикл - все через deltaTime
+    this.spawnAccumulator = 0;
+    this.SPAWN_TICK_SECONDS = 0.15; // 150ms в секундах
+    this.timerAccumulator = 0;
+    this.freezeTimeLeft = 0;
+    
     this.SPAWN_CHANCE_SNOW = 0.60;
     this.SPAWN_CHANCE_BOMB = 0.60;
     this.SPAWN_CHANCE_GIFT = 0.18;
     this.SPAWN_CHANCE_ICE = 0.0033;
+    
+    // Object Pool для объектов
+    this.objectPool = new ObjectPool(() => ({
+      type: 'snow',
+      x: 0,
+      y: 0,
+      speed: 0,
+      active: false
+    }), 100);
     
     // Оптимизация: ограничение максимального количества объектов на экране
     this.MAX_OBJECTS_ON_SCREEN = 50;
@@ -79,8 +89,11 @@ export class FrostClickGame extends GameBase {
     // Эффекты взрыва
     this.explosionEffects = [];
     
-    // Оптимизация рендеринга
-    this.needsRedraw = true;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Детализация dirty flags
+    this.needsRedrawObjects = true;
+    this.needsRedrawEffects = false;
+    this.needsRedrawUI = false;
+    this.needsRedrawFreeze = false;
     
     // Оптимизация кликов: кэш для сортировки объектов
     this.objectsSortedCache = null;
@@ -101,12 +114,24 @@ export class FrostClickGame extends GameBase {
   onStart() {
     this.score = 0;
     this.isFrozen = false;
-    this.objects = [];
+    this.freezeTimeLeft = 0;
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - освобождаем все объекты
+    this.objectPool.releaseAll();
     this.flashEffects = [];
     this.explosionEffects = [];
     this.pausedAccum = 0;
     this.pauseStart = null;
-    this.needsRedraw = true;
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Сброс аккумуляторов для RAF-цикла
+    this.spawnAccumulator = 0;
+    this.timerAccumulator = 0;
+    
+    // Первый рендер обязателен
+    this.needsRedrawObjects = true;
+    this.needsRedrawEffects = false;
+    this.needsRedrawUI = false;
+    this.needsRedrawFreeze = false;
 
     // Очистка Canvas
     if (this.ctx) {
@@ -129,7 +154,7 @@ export class FrostClickGame extends GameBase {
       this.freezeTimer = null;
     }
 
-    this.startTime = Date.now();
+    this.startTime = performance.now();
     this.lastIceSpawn = this.startTime;
 
     // Somnia schedule
@@ -139,42 +164,17 @@ export class FrostClickGame extends GameBase {
     );
     this.nextSomniaIndex = 0;
 
-    // Таймер
-    this.timerInterval = setInterval(() => {
-      if (this.isPaused) return;
-
-      const elapsed = Date.now() - this.startTime - this.pausedAccum;
-      const remaining = CONFIG.GAME_DURATION - elapsed;
-
-      if (remaining <= 0) {
-        clearInterval(this.timerInterval);
-        this.logic.endGame(true);
-      } else {
-        if (this.timerEl) {
-          this.timerEl.textContent = this.formatTime(remaining);
-        }
-      }
-    }, 1000);
-
-    // Spawner
-    this.spawnIntervalId = setInterval(() => this.logic.spawnTick(), this.SPAWN_TICK_MS);
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Убраны все setInterval - все через RAF
 
     // Обновление PB
     this.updatePersonalBest();
   }
 
   onStop() {
-    if (this.timerInterval) {
-      clearInterval(this.timerInterval);
-      this.timerInterval = null;
-    }
-    if (this.spawnIntervalId) {
-      clearInterval(this.spawnIntervalId);
-      this.spawnIntervalId = null;
-    }
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Убраны все clearInterval - больше не используются
 
-    // Очистка объектов
-    this.objects = [];
+    // Очистка объектов через Object Pool
+    this.objectPool.releaseAll();
     this.flashEffects = [];
     this.explosionEffects = [];
 
@@ -197,7 +197,7 @@ export class FrostClickGame extends GameBase {
     if (this.pauseOverlay) {
       this.pauseOverlay.style.display = 'flex';
     }
-    this.pauseStart = Date.now();
+    this.pauseStart = performance.now();
   }
 
   onResume() {
@@ -208,60 +208,112 @@ export class FrostClickGame extends GameBase {
       this.pauseOverlay.style.display = 'none';
     }
     if (this.pauseStart) {
-      this.pausedAccum += Date.now() - this.pauseStart;
+      this.pausedAccum += performance.now() - this.pauseStart;
       this.pauseStart = null;
     }
   }
 
   update(deltaTime) {
-    // Оптимизация: кэшируем размеры экрана
-    const screenHeight = window.innerHeight;
-    const maxY = screenHeight + this.SPRITE_SIZE;
-    
-    // Обновление позиций объектов
-    // Оптимизация: используем обратный цикл для безопасного удаления
-    let removedCount = 0;
-    for (let i = this.objects.length - 1; i >= 0; i--) {
-      const obj = this.objects[i];
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Таймер через RAF
+    this.timerAccumulator += deltaTime;
+    if (this.timerAccumulator >= 1.0) {
+      this.timerAccumulator -= 1.0;
+      
+      if (!this.isPaused) {
+        const elapsed = performance.now() - this.startTime - this.pausedAccum;
+        const remaining = CONFIG.GAME_DURATION - elapsed;
 
-      if (!this.isFrozen) {
-        obj.y += obj.speed * deltaTime;
-
-        // Удаление объектов за экраном (оптимизированная проверка)
-        if (obj.y > maxY) {
-          // Оптимизация: используем более эффективное удаление
-          this.objects.splice(i, 1);
-          removedCount++;
+        if (remaining <= 0) {
+          this.logic.endGame(true);
+        } else {
+          if (this.timerEl) {
+            this.timerEl.textContent = this.formatTime(remaining);
+          }
         }
       }
     }
     
-    // Обновляем флаг только если были изменения
-    if (removedCount > 0 || !this.isFrozen) {
-      this.needsRedraw = true;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Spawner через RAF
+    this.spawnAccumulator += deltaTime;
+    if (this.spawnAccumulator >= this.SPAWN_TICK_SECONDS) {
+      this.spawnAccumulator -= this.SPAWN_TICK_SECONDS;
+      this.logic.spawnTick();
+    }
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Freeze через RAF
+    if (this.isFrozen && this.freezeTimeLeft > 0) {
+      this.freezeTimeLeft -= deltaTime;
+      if (this.freezeTimeLeft <= 0) {
+        this.isFrozen = false;
+        this.freezeTimeLeft = 0;
+        if (this.freezeTimer) {
+          this.freezeTimer.remove();
+          this.freezeTimer = null;
+        }
+        this.needsRedrawFreeze = true;
+      } else {
+        // Обновляем текст freeze timer
+        const seconds = Math.ceil(this.freezeTimeLeft);
+        if (this.freezeTimer) {
+          this.freezeTimer.textContent = `Freeze: ${seconds}s`;
+        }
+        this.needsRedrawFreeze = true;
+      }
+    }
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - обновляем только активные объекты
+    const objects = this.objectPool.getActive();
+    const screenHeight = this.renderer ? this.renderer._cachedScreenHeight : window.innerHeight;
+    const maxY = screenHeight + this.SPRITE_SIZE;
+    
+    let objectsMoved = false;
+    
+    for (let i = 0; i < objects.length; i++) {
+      const obj = objects[i];
+      if (!obj.active) continue;
+
+      if (!this.isFrozen) {
+        const oldY = obj.y;
+        obj.y += obj.speed * deltaTime;
+        
+        if (obj.y !== oldY) {
+          objectsMoved = true;
+        }
+
+        // Удаление объектов за экраном через Object Pool
+        if (obj.y > maxY) {
+          this.objectPool.release(obj);
+        }
+      }
+    }
+    
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Детализация dirty flags
+    if (objectsMoved || objects.length !== this.objectPool.getActiveCount()) {
+      this.needsRedrawObjects = true;
     }
 
-    // Обновление flash эффектов (всегда нужен рендеринг для анимации)
-    // Оптимизация: обновляем только если есть эффекты
+    // Обновление flash эффектов
     if (this.flashEffects.length > 0) {
       const lifeDelta = deltaTime * 1000;
+      let hasActive = false;
       for (let i = this.flashEffects.length - 1; i >= 0; i--) {
         const flash = this.flashEffects[i];
         flash.life -= lifeDelta;
         if (flash.life <= 0) {
           this.flashEffects.splice(i, 1);
+        } else {
+          hasActive = true;
         }
       }
-      // Обновляем флаг только если остались активные эффекты
-      if (this.flashEffects.length > 0) {
-        this.needsRedraw = true;
-      }
+      this.needsRedrawEffects = hasActive;
+    } else {
+      this.needsRedrawEffects = false;
     }
 
-    // Обновление эффектов взрыва (всегда нужен рендеринг для анимации)
-    // Оптимизация: обновляем только если есть эффекты
+    // Обновление эффектов взрыва
     if (this.explosionEffects.length > 0) {
       const lifeDelta = deltaTime * 1000;
+      let hasActive = false;
       for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
         const explosion = this.explosionEffects[i];
         explosion.life -= lifeDelta;
@@ -269,34 +321,43 @@ export class FrostClickGame extends GameBase {
         
         if (explosion.life <= 0) {
           this.explosionEffects.splice(i, 1);
+        } else {
+          hasActive = true;
         }
       }
-      // Обновляем флаг только если остались активные эффекты
-      if (this.explosionEffects.length > 0) {
-        this.needsRedraw = true;
-      }
+      this.needsRedrawEffects = hasActive || this.needsRedrawEffects;
+    }
+    
+    // Бомбы пульсируют - нужен рендер если есть бомбы
+    const hasBombs = objects.some(obj => obj.active && obj.type === 'bomb');
+    if (hasBombs) {
+      this.needsRedrawObjects = true;
     }
   }
 
   render() {
-    // Рендерим всегда, так как есть анимации (бомбы пульсируют, flash эффекты)
-    // Но оптимизации внутри render() уменьшают нагрузку
-    this.renderer.render();
-    this.needsRedraw = false;
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Условный рендер с детализацией флагов
+    if (this.needsRedrawObjects || this.needsRedrawEffects || this.needsRedrawFreeze) {
+      this.renderer.render();
+      this.needsRedrawObjects = false;
+      this.needsRedrawEffects = false;
+      this.needsRedrawFreeze = false;
+    }
   }
 
   // Вспомогательные методы
   createFlash(x, y) {
-    // Оптимизация: ограничиваем количество flash эффектов
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Ограничиваем количество flash эффектов
     if (this.flashEffects.length >= this.MAX_FLASH_EFFECTS) {
       // Удаляем самый старый flash эффект
       this.flashEffects.shift();
     }
     this.flashEffects.push({ x, y, life: 250 });
+    this.needsRedrawEffects = true;
   }
 
   createExplosion(x, y) {
-    // Создаем эффект взрыва с несколькими частицами
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Создаем эффект взрыва с несколькими частицами
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 / 8) * i;
       this.explosionEffects.push({
@@ -309,6 +370,14 @@ export class FrostClickGame extends GameBase {
         maxLife: 500
       });
     }
+    this.needsRedrawEffects = true;
+  }
+  
+  /**
+   * Получить все активные объекты (для совместимости)
+   */
+  get objects() {
+    return this.objectPool.getActive();
   }
 
   addScore(points) {
