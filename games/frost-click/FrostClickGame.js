@@ -106,9 +106,21 @@ export class FrostClickGame extends GameBase {
   }
 
   async onInit() {
-    await this.renderer.loadEmojiSprites();
-    this.logic.createUI();
-    this.logic.setupEventListeners();
+    try {
+      await this.renderer.loadEmojiSprites();
+      this.logic.createUI();
+      this.logic.setupEventListeners();
+    } catch (error) {
+      console.error('Error in FrostClickGame.onInit():', error);
+      // Пытаемся создать UI даже если спрайты не загрузились
+      try {
+        this.logic.createUI();
+        this.logic.setupEventListeners();
+      } catch (uiError) {
+        console.error('Error creating UI:', uiError);
+      }
+      throw error; // Пробрасываем ошибку дальше
+    }
   }
 
   onStart() {
