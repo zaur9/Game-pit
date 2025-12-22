@@ -24,7 +24,8 @@ export class FrostClickGame extends GameBase {
     // Игровое состояние
     this.score = 0;
     this.isFrozen = false;
-    this.objects = [];
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: objects теперь getter, который возвращает objectPool.getActive()
+    // Не устанавливаем this.objects = [] здесь
     this.startTime = 0;
     this.pausedAccum = 0;
     this.pauseStart = null;
