@@ -18,8 +18,6 @@ export class FrostClickGame extends GameBase {
     // Canvas
     this.canvas = null;
     this.ctx = null;
-    this.canvasBaseWidth = 0;
-    this.canvasBaseHeight = 0;
     
     // Игровое состояние
     this.score = 0;
@@ -47,7 +45,6 @@ export class FrostClickGame extends GameBase {
     // Somnia
     this.SOMNIA_INTERVAL_MS = 58_000;
     this.SOMNIA_TOTAL = 10;
-    this.somniaSchedule = [];
     this.nextSomniaIndex = 0;
     
     // Размеры
@@ -69,15 +66,9 @@ export class FrostClickGame extends GameBase {
     // Эффекты
     this.flashEffects = [];
     this.explosionEffects = [];
-    this.MAX_FLASH_EFFECTS = 10;
     
     // Спрайты
     this.emojiSprites = new Map();
-    this.emojiLoaded = false;
-    
-    // Клики
-    this.lastClickTime = 0;
-    this.CLICK_THROTTLE_MS = 16;
     
     // Event listeners
     this._handleResize = null;
@@ -91,32 +82,18 @@ export class FrostClickGame extends GameBase {
   }
 
   async loadSprites() {
-    const emojis = {
-      'snow': '❄️',
-      'bomb': '💣',
-      'gift': '🎁',
-      'ice': '🧊'
-    };
-
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = this.SPRITE_SIZE;
-    tempCanvas.height = this.SPRITE_SIZE;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.font = `${this.OBJECT_SIZE * 1.5}px Arial`;
-    tempCtx.textAlign = 'center';
-    tempCtx.textBaseline = 'middle';
+    const emojis = { 'snow': '❄️', 'bomb': '💣', 'gift': '🎁', 'ice': '🧊' };
 
     for (const [key, emoji] of Object.entries(emojis)) {
-      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.fillText(emoji, tempCanvas.width / 2, tempCanvas.height / 2);
-      
-      const spriteCanvas = document.createElement('canvas');
-      spriteCanvas.width = tempCanvas.width;
-      spriteCanvas.height = tempCanvas.height;
-      const spriteCtx = spriteCanvas.getContext('2d');
-      spriteCtx.drawImage(tempCanvas, 0, 0);
-      
-      this.emojiSprites.set(key, spriteCanvas);
+      const canvas = document.createElement('canvas');
+      canvas.width = this.SPRITE_SIZE;
+      canvas.height = this.SPRITE_SIZE;
+      const ctx = canvas.getContext('2d');
+      ctx.font = `${this.OBJECT_SIZE * 1.5}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, canvas.width / 2, canvas.height / 2);
+      this.emojiSprites.set(key, canvas);
     }
 
     // Somnia SVG
@@ -138,8 +115,6 @@ export class FrostClickGame extends GameBase {
       somniaImg.onerror = reject;
       somniaImg.src = somniaSVG;
     });
-
-    this.emojiLoaded = true;
   }
 
   createUI() {
@@ -148,21 +123,16 @@ export class FrostClickGame extends GameBase {
     // Canvas
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'fc-canvas';
-    const realWidth = window.innerWidth;
-    const realHeight = window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     
-    this.canvas.width = realWidth;
-    this.canvas.height = realHeight;
-    this.canvasBaseWidth = realWidth;
-    this.canvasBaseHeight = realHeight;
-    
-    this.canvas.style.position = 'absolute';
-    this.canvas.style.top = '0';
-    this.canvas.style.left = '0';
-    this.canvas.style.width = realWidth + 'px';
-    this.canvas.style.height = realHeight + 'px';
-    this.canvas.style.zIndex = '1';
-    this.canvas.style.imageRendering = 'crisp-edges';
+    this.canvas.width = w;
+    this.canvas.height = h;
+    Object.assign(this.canvas.style, {
+      position: 'absolute', top: '0', left: '0',
+      width: w + 'px', height: h + 'px',
+      zIndex: '1', imageRendering: 'crisp-edges'
+    });
     
     this.ctx = this.canvas.getContext('2d', {
       alpha: true,
@@ -204,7 +174,9 @@ export class FrostClickGame extends GameBase {
           const { handleConnectWallet } = await import('../../web3.js');
           await handleConnectWallet();
         }
-        this.updateConnectWalletButton();
+        this.connectWalletBtn.textContent = window.userAccount
+          ? window.userAccount.slice(0, 6) + '...' + window.userAccount.slice(-4)
+          : 'Connect Wallet';
       } catch (error) {
         console.error('Connect wallet error:', error);
       }
@@ -274,62 +246,33 @@ export class FrostClickGame extends GameBase {
 
     // Resize handler
     this._handleResize = () => {
-      const newWidth = window.innerWidth;
-      const newHeight = window.innerHeight;
-      this.canvas.width = newWidth;
-      this.canvas.height = newHeight;
-      this.canvas.style.width = newWidth + 'px';
-      this.canvas.style.height = newHeight + 'px';
-      this.canvasBaseWidth = newWidth;
-      this.canvasBaseHeight = newHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.canvas.width = w;
+      this.canvas.height = h;
+      this.canvas.style.width = w + 'px';
+      this.canvas.style.height = h + 'px';
     };
     window.addEventListener('resize', this._handleResize);
 
-    this.updateConnectWalletButton();
-    this._onAccountChanged = () => {
-      this.updatePersonalBest();
-    };
-    if (window.eventBus) {
-      window.eventBus.on('web3:accountChanged', this._onAccountChanged);
-    }
-  }
-
-  updateConnectWalletButton() {
-    if (this.connectWalletBtn) {
-      if (window.userAccount) {
-        this.connectWalletBtn.textContent = window.userAccount.slice(0, 6) + '...' + window.userAccount.slice(-4);
-      } else {
-        this.connectWalletBtn.textContent = 'Connect Wallet';
-      }
-    }
+    // Обновление кнопки кошелька
+    this.connectWalletBtn.textContent = window.userAccount
+      ? window.userAccount.slice(0, 6) + '...' + window.userAccount.slice(-4)
+      : 'Connect Wallet';
+    
+    this._onAccountChanged = () => this.updatePersonalBest();
+    window.eventBus?.on('web3:accountChanged', this._onAccountChanged);
   }
 
   setupEventListeners() {
     this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
-
-    if (this.pauseBtn) {
-      this.pauseBtn.addEventListener('click', () => {
-        if (this.isPaused) {
-          this.resume();
-        } else {
-          this.pause();
-        }
-      });
-    }
-
-    const resumeBtn = this.pauseOverlay?.querySelector('#fc-resume-btn');
-    if (resumeBtn) {
-      resumeBtn.addEventListener('click', () => this.resume());
-    }
-
-    const restartBtn = this.gameOverEl?.querySelector('#fc-restart');
-    if (restartBtn) {
-      restartBtn.addEventListener('click', () => {
-        this.gameOverEl.style.display = 'none';
-        this.stop();
-        this.start();
-      });
-    }
+    this.pauseBtn.addEventListener('click', () => this.isPaused ? this.resume() : this.pause());
+    this.pauseOverlay.querySelector('#fc-resume-btn').addEventListener('click', () => this.resume());
+    this.gameOverEl.querySelector('#fc-restart').addEventListener('click', () => {
+      this.gameOverEl.style.display = 'none';
+      this.stop();
+      this.start();
+    });
   }
 
   onStart() {
@@ -344,40 +287,27 @@ export class FrostClickGame extends GameBase {
     this.spawnAccumulator = 0;
     this.timerAccumulator = 0;
     
-    if (this.canvas) {
-      const realWidth = window.innerWidth;
-      const realHeight = window.innerHeight;
-      this.canvas.width = realWidth;
-      this.canvas.height = realHeight;
-      this.canvasBaseWidth = realWidth;
-      this.canvasBaseHeight = realHeight;
-    }
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.canvas.width = w;
+    this.canvas.height = h;
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
+    this.ctx.clearRect(0, 0, w, h);
 
-    if (this.ctx && this.canvas) {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    }
+    this.scoreEl.textContent = 'Score: 0';
+    this.timerEl.textContent = '10:00';
+    this.gameOverEl.style.display = 'none';
+    this.pauseOverlay.style.display = 'none';
+    this.pauseBtn.textContent = 'Pause';
+    this.pauseBtn.style.display = 'block';
 
-    if (this.scoreEl) this.scoreEl.textContent = 'Score: 0';
-    if (this.timerEl) this.timerEl.textContent = '10:00';
-    if (this.gameOverEl) this.gameOverEl.style.display = 'none';
-    if (this.pauseOverlay) this.pauseOverlay.style.display = 'none';
-    if (this.pauseBtn) {
-      this.pauseBtn.textContent = 'Pause';
-      this.pauseBtn.style.display = 'block';
-    }
-
-    if (this.freezeTimer) {
-      this.freezeTimer.remove();
-      this.freezeTimer = null;
-    }
+    this.freezeTimer?.remove();
+    this.freezeTimer = null;
 
     this.startTime = performance.now();
     this.lastIceSpawn = this.startTime;
 
-    this.somniaSchedule = Array.from(
-      { length: this.SOMNIA_TOTAL },
-      (_, i) => (i + 1) * this.SOMNIA_INTERVAL_MS
-    );
     this.nextSomniaIndex = 0;
 
     this.updatePersonalBest();
@@ -387,34 +317,20 @@ export class FrostClickGame extends GameBase {
     this.objects = [];
     this.flashEffects = [];
     this.explosionEffects = [];
-
-    if (this.ctx) {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
-    if (this.freezeTimer) {
-      this.freezeTimer.remove();
-      this.freezeTimer = null;
-    }
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.freezeTimer?.remove();
+    this.freezeTimer = null;
   }
 
   onPause() {
-    if (this.pauseBtn) {
-      this.pauseBtn.style.display = 'none';
-    }
-    if (this.pauseOverlay) {
-      this.pauseOverlay.style.display = 'flex';
-    }
+    this.pauseBtn.style.display = 'none';
+    this.pauseOverlay.style.display = 'flex';
     this.pauseStart = performance.now();
   }
 
   onResume() {
-    if (this.pauseBtn) {
-      this.pauseBtn.style.display = 'block';
-    }
-    if (this.pauseOverlay) {
-      this.pauseOverlay.style.display = 'none';
-    }
+    this.pauseBtn.style.display = 'block';
+    this.pauseOverlay.style.display = 'none';
     if (this.pauseStart) {
       this.pausedAccum += performance.now() - this.pauseStart;
       this.pauseStart = null;
@@ -434,9 +350,7 @@ export class FrostClickGame extends GameBase {
         if (remaining <= 0) {
           this.endGame(true);
         } else {
-          if (this.timerEl) {
-            this.timerEl.textContent = this.formatTime(remaining);
-          }
+          this.timerEl.textContent = this.formatTime(remaining);
         }
       }
     }
@@ -454,21 +368,15 @@ export class FrostClickGame extends GameBase {
       if (this.freezeTimeLeft <= 0) {
         this.isFrozen = false;
         this.freezeTimeLeft = 0;
-        if (this.freezeTimer) {
-          this.freezeTimer.remove();
-          this.freezeTimer = null;
-        }
+        this.freezeTimer?.remove();
+        this.freezeTimer = null;
       } else {
-        const seconds = Math.ceil(this.freezeTimeLeft);
-        if (this.freezeTimer) {
-          this.freezeTimer.textContent = `Freeze: ${seconds}s`;
-        }
+        this.freezeTimer.textContent = `Freeze: ${Math.ceil(this.freezeTimeLeft)}s`;
       }
     }
     
     // Обновление объектов
-    const screenHeight = this.canvas ? this.canvas.height : window.innerHeight;
-    const maxY = screenHeight + this.SPRITE_SIZE;
+    const maxY = this.canvas.height + this.SPRITE_SIZE;
     
     for (let i = this.objects.length - 1; i >= 0; i--) {
       const obj = this.objects[i];
@@ -506,10 +414,10 @@ export class FrostClickGame extends GameBase {
   }
 
   render() {
-    if (!this.ctx || !this.emojiLoaded) return;
+    if (!this.ctx) return;
     
-    const screenWidth = this.canvasBaseWidth || this.canvas.width;
-    const screenHeight = this.canvasBaseHeight || this.canvas.height;
+    const screenWidth = this.canvas.width;
+    const screenHeight = this.canvas.height;
     const halfSize = this.SPRITE_SIZE / 2;
 
     // Очистка
@@ -536,53 +444,39 @@ export class FrostClickGame extends GameBase {
       }
     }
 
-    // Flash эффекты (runtime)
+    // Flash эффекты
     for (const flash of this.flashEffects) {
-      if (flash.life > 0) {
-        const lifeRatio = flash.life / 250;
-        const alpha = lifeRatio;
-        const size = (1 - lifeRatio) * 80;
-        
-        this.ctx.save();
-        this.ctx.globalAlpha = alpha;
-        const gradient = this.ctx.createRadialGradient(
-          flash.x, flash.y, 0,
-          flash.x, flash.y, size
-        );
-        gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
-        gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
-        gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
-        this.ctx.fillStyle = gradient;
-        this.ctx.beginPath();
-        this.ctx.arc(flash.x, flash.y, size, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.restore();
-      }
+      const lifeRatio = flash.life / 250;
+      const size = (1 - lifeRatio) * 80;
+      this.ctx.save();
+      this.ctx.globalAlpha = lifeRatio;
+      const gradient = this.ctx.createRadialGradient(flash.x, flash.y, 0, flash.x, flash.y, size);
+      gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
+      gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
+      gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
+      this.ctx.fillStyle = gradient;
+      this.ctx.beginPath();
+      this.ctx.arc(flash.x, flash.y, size, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
     }
 
-    // Explosion эффекты (runtime)
+    // Explosion эффекты
     for (const exp of this.explosionEffects) {
-      if (exp.life > 0) {
-        const lifeRatio = exp.life / exp.maxLife;
-        const alpha = lifeRatio * 0.8;
-        const size = exp.size * 0.5;
-        
-        this.ctx.save();
-        this.ctx.globalAlpha = alpha;
-        const gradient = this.ctx.createRadialGradient(
-          exp.x, exp.y, 0,
-          exp.x, exp.y, size
-        );
-        gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
-        gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
-        gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
-        gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
-        this.ctx.fillStyle = gradient;
-        this.ctx.beginPath();
-        this.ctx.arc(exp.x, exp.y, size, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.restore();
-      }
+      const lifeRatio = exp.life / exp.maxLife;
+      const size = exp.size * 0.5;
+      this.ctx.save();
+      this.ctx.globalAlpha = lifeRatio * 0.8;
+      const gradient = this.ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, size);
+      gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
+      gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
+      gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
+      gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
+      this.ctx.fillStyle = gradient;
+      this.ctx.beginPath();
+      this.ctx.arc(exp.x, exp.y, size, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
     }
 
     // Freeze overlay
@@ -605,8 +499,8 @@ export class FrostClickGame extends GameBase {
 
     // Somnia
     const elapsed = now - this.startTime - this.pausedAccum;
-    if (this.nextSomniaIndex < this.somniaSchedule.length &&
-        elapsed >= this.somniaSchedule[this.nextSomniaIndex]) {
+    const expectedTime = (this.nextSomniaIndex + 1) * this.SOMNIA_INTERVAL_MS;
+    if (this.nextSomniaIndex < this.SOMNIA_TOTAL && elapsed >= expectedTime) {
       this.createObject('somnia', 40 + Math.random() * 20);
       this.nextSomniaIndex++;
     }
@@ -630,7 +524,7 @@ export class FrostClickGame extends GameBase {
       this.objects.shift();
     }
 
-    const canvasWidth = this.canvasBaseWidth || this.canvas.width || window.innerWidth;
+    const canvasWidth = this.canvas.width;
     const x = Math.random() * (canvasWidth - this.SPRITE_SIZE) + this.SPRITE_SIZE / 2;
     const y = -this.SPRITE_SIZE;
 
@@ -644,17 +538,11 @@ export class FrostClickGame extends GameBase {
 
   handleCanvasClick(e) {
     if (!this.isActive || this.isPaused) return;
-    
-    const now = Date.now();
-    if (now - this.lastClickTime < this.CLICK_THROTTLE_MS) return;
-    this.lastClickTime = now;
 
     const rect = this.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (this.objects.length === 0) return;
-    
     // Проверяем с конца (сверху вниз)
     for (let i = this.objects.length - 1; i >= 0; i--) {
       const obj = this.objects[i];
@@ -667,12 +555,10 @@ export class FrostClickGame extends GameBase {
         this.objects.splice(i, 1);
         this.createFlash(obj.x, obj.y);
         
+        const scores = { snow: 1, bomb: 3, gift: 5, ice: 2, somnia: 100 };
+        
         if (this.isFrozen) {
-          if (type === 'snow') this.addScore(1);
-          else if (type === 'bomb') this.addScore(3);
-          else if (type === 'gift') this.addScore(5);
-          else if (type === 'ice') this.addScore(2);
-          else if (type === 'somnia') this.addScore(100);
+          this.addScore(scores[type] || 0);
           return;
         }
 
@@ -684,14 +570,8 @@ export class FrostClickGame extends GameBase {
 
         if (type === 'ice') {
           this.activateFreeze();
-          this.addScore(2);
-        } else if (type === 'somnia') {
-          this.addScore(100);
-        } else if (type === 'gift') {
-          this.addScore(5);
-        } else {
-          this.addScore(1);
         }
+        this.addScore(scores[type] || 0);
         return;
       }
     }
@@ -722,52 +602,33 @@ export class FrostClickGame extends GameBase {
     this.timerAccumulator = 0;
 
     const elapsed = performance.now() - this.startTime - this.pausedAccum;
-    const resultTitle = this.gameOverEl?.querySelector('#fc-result-title');
-    const finalScoreEl = this.gameOverEl?.querySelector('#fc-final-score');
-    const timeSurvivedEl = this.gameOverEl?.querySelector('#fc-time-survived');
+    const resultTitle = this.gameOverEl.querySelector('#fc-result-title');
+    const finalScoreEl = this.gameOverEl.querySelector('#fc-final-score');
+    const timeSurvivedEl = this.gameOverEl.querySelector('#fc-time-survived');
 
-    if (resultTitle) {
-      resultTitle.textContent = isWin
-        ? '🎉 You Survived 10 Minutes! 🎉'
-        : 'Game Over!';
-    }
-    if (finalScoreEl) {
-      finalScoreEl.textContent = `Final Score: ${this.score}`;
-    }
-    if (timeSurvivedEl) {
-      timeSurvivedEl.textContent = `Time: ${this.formatTime(elapsed)}`;
-    }
-
-    if (this.gameOverEl) {
-      this.gameOverEl.style.display = 'block';
-    }
+    resultTitle.textContent = isWin ? '🎉 You Survived 10 Minutes! 🎉' : 'Game Over!';
+    finalScoreEl.textContent = `Final Score: ${this.score}`;
+    timeSurvivedEl.textContent = `Time: ${this.formatTime(elapsed)}`;
+    this.gameOverEl.style.display = 'block';
 
     if (window.userAccount) {
-      this.showWeb3Buttons();
+      let submitBtn = this.gameOverEl.querySelector('#fc-submit-score');
+      if (!submitBtn) {
+        submitBtn = document.createElement('button');
+        submitBtn.id = 'fc-submit-score';
+        submitBtn.className = 'fc-btn';
+        submitBtn.textContent = 'Submit Score';
+        submitBtn.addEventListener('click', () => {
+          eventBus.emit('game:score:submit', { gameId: this.id, score: this.score });
+        });
+        this.gameOverEl.appendChild(submitBtn);
+      }
+      submitBtn.style.display = 'block';
     }
-  }
-
-  showWeb3Buttons() {
-    if (!window.userAccount) return;
-
-    let submitBtn = this.gameOverEl.querySelector('#fc-submit-score');
-    if (!submitBtn) {
-      submitBtn = document.createElement('button');
-      submitBtn.id = 'fc-submit-score';
-      submitBtn.className = 'fc-btn';
-      submitBtn.textContent = 'Submit Score';
-      submitBtn.addEventListener('click', () => {
-        eventBus.emit('game:score:submit', { gameId: this.id, score: this.score });
-      });
-      this.gameOverEl.appendChild(submitBtn);
-    }
-    submitBtn.style.display = 'block';
   }
 
   createFlash(x, y) {
-    if (this.flashEffects.length >= this.MAX_FLASH_EFFECTS) {
-      this.flashEffects.shift();
-    }
+    if (this.flashEffects.length >= 10) this.flashEffects.shift();
     this.flashEffects.push({ x, y, life: 250 });
   }
 
@@ -788,41 +649,30 @@ export class FrostClickGame extends GameBase {
 
   addScore(points) {
     this.score += points;
-    if (this.scoreEl) {
-      this.scoreEl.textContent = `Score: ${this.score}`;
-    }
+    this.scoreEl.textContent = `Score: ${this.score}`;
   }
 
   formatTime(ms) {
-    const totalSec = Math.floor(ms / 1000);
-    const min = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    const sec = Math.floor(ms / 1000);
+    return `${Math.floor(sec / 60).toString().padStart(2, '0')}:${(sec % 60).toString().padStart(2, '0')}`;
   }
 
   async updatePersonalBest() {
     if (!window.contract || !window.ethereum || !window.userAccount) {
-      if (this.pbScoreEl) this.pbScoreEl.textContent = 'Best: 0';
+      this.pbScoreEl.textContent = 'Best: 0';
       return;
     }
     try {
       const idxPlusOne = await window.contract.methods.indexPlusOne(window.userAccount).call();
       if (idxPlusOne === '0' || idxPlusOne === 0) {
-        if (this.pbScoreEl) this.pbScoreEl.textContent = 'Best: 0';
+        this.pbScoreEl.textContent = 'Best: 0';
       } else {
-        const idx = Number(idxPlusOne) - 1;
-        const entry = await window.contract.methods.leaderboard(idx).call();
-        if (this.pbScoreEl) {
-          this.pbScoreEl.textContent = 'Best: ' + entry.score;
-        }
+        const entry = await window.contract.methods.leaderboard(Number(idxPlusOne) - 1).call();
+        this.pbScoreEl.textContent = 'Best: ' + entry.score;
       }
     } catch (e) {
-      if (this.pbScoreEl) this.pbScoreEl.textContent = 'Best: ?';
+      this.pbScoreEl.textContent = 'Best: ?';
     }
-  }
-
-  getScore() {
-    return this.score;
   }
 
   onCleanup() {
