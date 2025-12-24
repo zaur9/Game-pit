@@ -22,8 +22,7 @@ export class FrostClickGame extends GameBase {
     // Игровое состояние
     this.score = 0;
     this.isFrozen = false;
-    this.objects = []; // Простой массив вместо ObjectPool
-    this.MAX_OBJECTS = 50;
+    this.objects = [];
     
     this.startTime = 0;
     this.pausedAccum = 0;
@@ -314,10 +313,22 @@ export class FrostClickGame extends GameBase {
   }
 
   onStop() {
+    // Полный сброс состояния игры
     this.objects = [];
     this.flashEffects = [];
     this.explosionEffects = [];
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.isFrozen = false;
+    this.freezeTimeLeft = 0;
+    this.spawnAccumulator = 0;
+    this.timerAccumulator = 0;
+    this.pausedAccum = 0;
+    this.pauseStart = null;
+    this.nextSomniaIndex = 0;
+    
+    if (this.ctx && this.canvas) {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    
     this.freezeTimer?.remove();
     this.freezeTimer = null;
   }
@@ -519,22 +530,6 @@ export class FrostClickGame extends GameBase {
 
   createObject(type, speed) {
     if (!this.isActive || this.isPaused) return;
-    
-    // Удаляем только объекты за экраном, если достигнут лимит
-    if (this.objects.length >= this.MAX_OBJECTS) {
-      const maxY = this.canvas.height + this.SPRITE_SIZE;
-      // Ищем первый объект за экраном
-      for (let i = 0; i < this.objects.length; i++) {
-        if (this.objects[i].y > maxY) {
-          this.objects.splice(i, 1);
-          break;
-        }
-      }
-      // Если все объекты на экране, удаляем самый старый (первый)
-      if (this.objects.length >= this.MAX_OBJECTS) {
-        this.objects.shift();
-      }
-    }
 
     const canvasWidth = this.canvas.width;
     const x = Math.random() * (canvasWidth - this.SPRITE_SIZE) + this.SPRITE_SIZE / 2;
