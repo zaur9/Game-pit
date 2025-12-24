@@ -142,6 +142,9 @@ export class FrostClickGame extends GameBase {
   createUI() {
     if (!this.container) return;
 
+    // Строим UI вне DOM, затем вставляем одним commit (меньше reflow/lag на старте)
+    const frag = document.createDocumentFragment();
+
     // Canvas
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'fc-canvas';
@@ -163,7 +166,7 @@ export class FrostClickGame extends GameBase {
     });
     this.ctx.imageSmoothingEnabled = false;
     
-    this.container.appendChild(this.canvas);
+    frag.appendChild(this.canvas);
 
     // HUD
     this.scoreEl = document.createElement('div');
@@ -255,16 +258,19 @@ export class FrostClickGame extends GameBase {
       }
     });
 
-    // Добавляем в контейнер
-    this.container.appendChild(this.scoreEl);
-    this.container.appendChild(this.pbScoreEl);
-    this.container.appendChild(this.timerEl);
-    this.container.appendChild(this.connectWalletBtn);
-    this.container.appendChild(this.leaderboardBtn);
-    this.container.appendChild(this.pauseBtn);
-    this.container.appendChild(this.pauseOverlay);
-    this.container.appendChild(this.gameOverEl);
-    this.container.appendChild(backBtn);
+    // Добавляем в fragment (один append в DOM ниже)
+    frag.appendChild(this.scoreEl);
+    frag.appendChild(this.pbScoreEl);
+    frag.appendChild(this.timerEl);
+    frag.appendChild(this.connectWalletBtn);
+    frag.appendChild(this.leaderboardBtn);
+    frag.appendChild(this.pauseBtn);
+    frag.appendChild(this.pauseOverlay);
+    frag.appendChild(this.gameOverEl);
+    frag.appendChild(backBtn);
+
+    // Один commit в DOM
+    this.container.appendChild(frag);
 
     // Resize handler
     this._handleResize = () => {
