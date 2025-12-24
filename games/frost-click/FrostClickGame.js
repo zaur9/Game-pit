@@ -306,10 +306,17 @@ export class FrostClickGame extends GameBase {
 
     this.startTime = performance.now();
     this.lastIceSpawn = this.startTime;
-
     this.nextSomniaIndex = 0;
 
-    this.updatePersonalBest();
+    // Обновляем PB асинхронно, чтобы не блокировать старт игры
+    this.updatePersonalBest().catch(() => {});
+    
+    // Немедленный первый спавн для быстрого старта (после небольшой задержки для инициализации)
+    setTimeout(() => {
+      if (this.isActive && !this.isPaused) {
+        this.spawnTick();
+      }
+    }, 100);
   }
 
   onStop() {
@@ -324,6 +331,8 @@ export class FrostClickGame extends GameBase {
     this.pausedAccum = 0;
     this.pauseStart = null;
     this.nextSomniaIndex = 0;
+    this.startTime = 0;
+    this.lastIceSpawn = 0;
     
     if (this.ctx && this.canvas) {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
