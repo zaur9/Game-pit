@@ -439,55 +439,58 @@ export class FrostClickGame extends GameBase {
       const sprite = this.emojiSprites.get(obj.type);
       if (sprite) {
         this.ctx.drawImage(sprite, obj.x - halfSize, obj.y - halfSize);
+        
+        // Эффект пульсации для бомб
+        if (obj.type === 'bomb') {
+          this.ctx.save();
+          this.ctx.shadowBlur = 15;
+          this.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
+          this.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
+          this.ctx.beginPath();
+          this.ctx.arc(obj.x, obj.y, this.OBJECT_SIZE / 2 + 5, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.restore();
+        }
       }
-      
-      // Эффект пульсации для бомб
-      if (obj.type === 'bomb') {
+    }
+
+    // Flash эффекты
+    if (this.flashEffects.length > 0) {
+      for (const flash of this.flashEffects) {
+        const lifeRatio = flash.life / 250;
+        const size = (1 - lifeRatio) * 80;
         this.ctx.save();
-        this.ctx.shadowBlur = 15;
-        this.ctx.shadowColor = 'rgba(255, 40, 40, 0.9)';
-        this.ctx.fillStyle = 'rgba(255, 40, 40, 0.3)';
-        const bombRadius = this.OBJECT_SIZE / 2 + 5;
+        this.ctx.globalAlpha = lifeRatio;
+        const gradient = this.ctx.createRadialGradient(flash.x, flash.y, 0, flash.x, flash.y, size);
+        gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
+        gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
+        gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
+        this.ctx.fillStyle = gradient;
         this.ctx.beginPath();
-        this.ctx.arc(obj.x, obj.y, bombRadius, 0, Math.PI * 2);
+        this.ctx.arc(flash.x, flash.y, size, 0, Math.PI * 2);
         this.ctx.fill();
         this.ctx.restore();
       }
     }
 
-    // Flash эффекты
-    for (const flash of this.flashEffects) {
-      const lifeRatio = flash.life / 250;
-      const size = (1 - lifeRatio) * 80;
-      this.ctx.save();
-      this.ctx.globalAlpha = lifeRatio;
-      const gradient = this.ctx.createRadialGradient(flash.x, flash.y, 0, flash.x, flash.y, size);
-      gradient.addColorStop(0, 'rgba(0, 255, 255, 1)');
-      gradient.addColorStop(0.5, 'rgba(77, 255, 204, 0.5)');
-      gradient.addColorStop(1, 'rgba(77, 255, 204, 0)');
-      this.ctx.fillStyle = gradient;
-      this.ctx.beginPath();
-      this.ctx.arc(flash.x, flash.y, size, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.restore();
-    }
-
     // Explosion эффекты
-    for (const exp of this.explosionEffects) {
-      const lifeRatio = exp.life / exp.maxLife;
-      const size = exp.size * 0.5;
-      this.ctx.save();
-      this.ctx.globalAlpha = lifeRatio * 0.8;
-      const gradient = this.ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, size);
-      gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
-      gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
-      gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
-      gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
-      this.ctx.fillStyle = gradient;
-      this.ctx.beginPath();
-      this.ctx.arc(exp.x, exp.y, size, 0, Math.PI * 2);
-      this.ctx.fill();
-      this.ctx.restore();
+    if (this.explosionEffects.length > 0) {
+      for (const exp of this.explosionEffects) {
+        const lifeRatio = exp.life / exp.maxLife;
+        const size = exp.size * 0.5;
+        this.ctx.save();
+        this.ctx.globalAlpha = lifeRatio * 0.8;
+        const gradient = this.ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, size);
+        gradient.addColorStop(0, 'rgba(255, 200, 0, 1)');
+        gradient.addColorStop(0.3, 'rgba(255, 100, 0, 0.8)');
+        gradient.addColorStop(0.6, 'rgba(255, 40, 40, 0.6)');
+        gradient.addColorStop(1, 'rgba(255, 40, 40, 0)');
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.arc(exp.x, exp.y, size, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
     }
 
     // Freeze overlay
