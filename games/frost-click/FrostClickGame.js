@@ -68,19 +68,42 @@ export class FrostClickGame extends GameBase {
     
     // Спрайты
     this.emojiSprites = new Map();
+    this._spritesLoaded = false;
+    this._spritesPromise = null;
     
     // Event listeners
     this._handleResize = null;
     this._onAccountChanged = null;
+
+    // Стартуем preload заранее (до первого захода в игру) — уменьшает лаги на старте
+    this._ensureSpritesLoaded();
   }
 
   async onInit() {
-    await this.loadSprites();
+    await this._ensureSpritesLoaded();
     this.createUI();
     this.setupEventListeners();
   }
 
+  _ensureSpritesLoaded() {
+    if (this._spritesLoaded) return Promise.resolve();
+    if (this._spritesPromise) return this._spritesPromise;
+
+    this._spritesPromise = this.loadSprites()
+      .then(() => { this._spritesLoaded = true; })
+      .catch((e) => {
+        // Дадим повторить попытку позже
+        this._spritesPromise = null;
+        throw e;
+      });
+
+    return this._spritesPromise;
+  }
+
   async loadSprites() {
+    // Защита от повторной генерации
+    if (this._spritesLoaded) return;
+
     const emojis = { 'snow': '❄️', 'bomb': '💣', 'gift': '🎁', 'ice': '🧊' };
 
     for (const [key, emoji] of Object.entries(emojis)) {
@@ -712,5 +735,18 @@ export class FrostClickGame extends GameBase {
     if (this._onAccountChanged && window.eventBus) {
       window.eventBus.off('web3:accountChanged', this._onAccountChanged);
     }
+
+    // ВАЖНО: обнуляем ссылки на DOM-элементы, иначе старые элементы/листенеры висят в памяти
+    this.canvas = null;
+    this.ctx = null;
+    this.scoreEl = null;
+    this.timerEl = null;
+    this.pbScoreEl = null;
+    this.pauseBtn = null;
+    this.gameOverEl = null;
+    this.pauseOverlay = null;
+    this.freezeTimer = null;
+    this.leaderboardBtn = null;
+    this.connectWalletBtn = null;
   }
 }
