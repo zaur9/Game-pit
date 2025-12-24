@@ -114,10 +114,13 @@ export class GameBase {
     let deltaTime = (timestamp - this.lastFrameTime) / 1000; // в секундах
     this.lastFrameTime = timestamp;
     
-    // КРИТИЧНО: Ограничиваем deltaTime чтобы избежать "прыжков" после alt+tab/pause
-    // Максимум 100ms (10 FPS минимум), иначе физика ломается
-    if (deltaTime > 0.1) {
-      deltaTime = 0.1;
+    // КРИТИЧНО: Ограничиваем deltaTime чтобы избежать "прыжков"
+    // Минимум 0 (защита от отрицательных значений)
+    // Максимум 0.05 (50ms = 20 FPS минимум) - строже для стабильной физики
+    if (deltaTime < 0) {
+      deltaTime = 0;
+    } else if (deltaTime > 0.05) {
+      deltaTime = 0.05;
     }
     
     if (!this.isPaused) {
