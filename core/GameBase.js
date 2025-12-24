@@ -53,7 +53,14 @@ export class GameBase {
    * Начать игру
    */
   start() {
+    // Если уже активна, не запускаем повторно
     if (this.isActive) return;
+    
+    // Останавливаем предыдущий цикл если есть
+    if (this.gameLoopId) {
+      cancelAnimationFrame(this.gameLoopId);
+      this.gameLoopId = null;
+    }
     
     this.isActive = true;
     this.isPaused = false;
