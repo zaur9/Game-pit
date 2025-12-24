@@ -30,7 +30,12 @@ export class GameBase {
    * @param {HTMLElement} container - контейнер для игры
    */
   async init(container) {
-    // Если контейнер уже установлен и тот же, не инициализируем повторно
+    // Если контейнер изменился, сбрасываем флаг инициализации
+    if (this.container !== container) {
+      this._initialized = false;
+    }
+    
+    // Если уже инициализирован с тем же контейнером, пропускаем
     if (this.container === container && this._initialized) {
       return;
     }
