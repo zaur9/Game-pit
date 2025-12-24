@@ -311,12 +311,13 @@ export class FrostClickGame extends GameBase {
     // Обновляем PB асинхронно, чтобы не блокировать старт игры
     this.updatePersonalBest().catch(() => {});
     
-    // Немедленный первый спавн для быстрого старта (после небольшой задержки для инициализации)
-    setTimeout(() => {
+    // Немедленный первый спавн для быстрого старта
+    // Используем requestAnimationFrame для синхронизации с игровым циклом
+    requestAnimationFrame(() => {
       if (this.isActive && !this.isPaused) {
         this.spawnTick();
       }
-    }, 100);
+    });
   }
 
   onStop() {
@@ -376,10 +377,12 @@ export class FrostClickGame extends GameBase {
     }
     
     // Спавн
-    this.spawnAccumulator += deltaTime;
-    if (this.spawnAccumulator >= this.SPAWN_TICK_SECONDS) {
-      this.spawnAccumulator -= this.SPAWN_TICK_SECONDS;
-      this.spawnTick();
+    if (this.isActive && !this.isPaused) {
+      this.spawnAccumulator += deltaTime;
+      if (this.spawnAccumulator >= this.SPAWN_TICK_SECONDS) {
+        this.spawnAccumulator -= this.SPAWN_TICK_SECONDS;
+        this.spawnTick();
+      }
     }
     
     // Freeze
@@ -510,7 +513,8 @@ export class FrostClickGame extends GameBase {
   }
 
   spawnTick() {
-    if (!this.isActive || this.isPaused || this.isFrozen) return;
+    if (!this.isActive || this.isPaused) return;
+    // Не спавним во время freeze, но проверяем только isActive и isPaused
 
     const now = performance.now();
 
@@ -521,11 +525,13 @@ export class FrostClickGame extends GameBase {
     }
 
     // Somnia
-    const elapsed = now - this.startTime - this.pausedAccum;
-    const expectedTime = (this.nextSomniaIndex + 1) * this.SOMNIA_INTERVAL_MS;
-    if (this.nextSomniaIndex < this.SOMNIA_TOTAL && elapsed >= expectedTime) {
-      this.createObject('somnia', 50 + Math.random() * 20);
-      this.nextSomniaIndex++;
+    if (this.startTime > 0) {
+      const elapsed = now - this.startTime - this.pausedAccum;
+      const expectedTime = (this.nextSomniaIndex + 1) * this.SOMNIA_INTERVAL_MS;
+      if (this.nextSomniaIndex < this.SOMNIA_TOTAL && elapsed >= expectedTime) {
+        this.createObject('somnia', 50 + Math.random() * 20);
+        this.nextSomniaIndex++;
+      }
     }
 
     // Random spawns
