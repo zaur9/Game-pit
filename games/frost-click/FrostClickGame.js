@@ -288,35 +288,35 @@ export class FrostClickGame extends GameBase {
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - обновляем только активные объекты
     const objects = this.objectPool.getActive();
-    // Используем реальную высоту canvas - обязательно из canvas
+    const objectCount = objects.length;
+    
+    // Используем реальную высоту canvas
     const screenHeight = this.canvas ? this.canvas.height : window.innerHeight;
     // Объекты должны исчезать только когда полностью уйдут за экран
-    // Центр объекта должен быть ниже экрана + половина спрайта
     const maxY = screenHeight + this.SPRITE_SIZE;
     
     let objectsMoved = false;
+    let objectsRemoved = false;
     
-    for (let i = 0; i < objects.length; i++) {
+    // Обратный цикл для безопасного удаления
+    // После getActive() все объекты гарантированно активны (compact уже выполнен)
+    for (let i = objectCount - 1; i >= 0; i--) {
       const obj = objects[i];
-      if (!obj.active) continue;
 
       if (!this.isFrozen) {
-        const oldY = obj.y;
         obj.y += obj.speed * deltaTime;
-        
-        if (obj.y !== oldY) {
-          objectsMoved = true;
-        }
+        objectsMoved = true;
 
         // Удаление объектов за экраном через Object Pool
         if (obj.y > maxY) {
           this.objectPool.release(obj);
+          objectsRemoved = true;
         }
       }
     }
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Детализация dirty flags
-    if (objectsMoved || objects.length !== this.objectPool.getActiveCount()) {
+    if (objectsMoved || objectsRemoved) {
       this.needsRedrawObjects = true;
     }
 
@@ -464,6 +464,11 @@ export class FrostClickGame extends GameBase {
     this.onStop();
     this.flashEffects = [];
     this.explosionEffects = [];
+    
+    // Отписываемся от resize
+    if (this.logic._handleResize) {
+      window.removeEventListener('resize', this.logic._handleResize);
+    }
     
     // Отписываемся от eventBus
     if (this.logic._onAccountChanged) {
