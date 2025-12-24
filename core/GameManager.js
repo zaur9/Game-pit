@@ -122,15 +122,18 @@ export class GameManager {
       this.gameContainer.innerHTML = '';
     }
 
-    // Запускаем снег для игры
-    this.startSnow();
-
     // Инициализируем и запускаем новую игру
     this.currentGame = game;
     
+    // Контейнер очищен -> принудительно считаем игру неинициализированной
+    game._initialized = false;
+    game.container = null;
+
     // Всегда переинициализируем игру (контейнер был очищен)
     game.init(this.gameContainer).then(() => {
       game.start();
+      // Запускаем снег после старта игры (чтобы не мешать инициализации/UI)
+      this.startSnow();
     }).catch(error => {
       console.error('Error starting game:', error);
       this.showMainMenu();
@@ -142,7 +145,12 @@ export class GameManager {
    */
   stopCurrentGame() {
     if (this.currentGame) {
-      this.currentGame.stop();
+      // cleanup() -> stop() + onCleanup()
+      const game = this.currentGame;
+      game.cleanup();
+      // После cleanup всегда требуем реинициализацию при следующем запуске
+      game._initialized = false;
+      game.container = null;
       this.currentGame = null;
     }
   }
@@ -161,12 +169,6 @@ export class GameManager {
     if (this.gameContainer) {
       this.gameContainer.style.display = 'none';
       this.gameContainer.innerHTML = '';
-    }
-    
-    // Сбрасываем флаг инициализации у текущей игры
-    if (this.currentGame) {
-      this.currentGame._initialized = false;
-      this.currentGame.container = null;
     }
 
     // Показываем меню
