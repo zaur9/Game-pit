@@ -493,7 +493,7 @@ export class FrostClickGame extends GameBase {
 
     // Ice
     if (now - this.lastIceSpawn >= this.ICE_INTERVAL) {
-      this.createObject('ice', 50);
+      this.createObject('ice', 80);
       this.lastIceSpawn = now;
     }
 
@@ -501,27 +501,39 @@ export class FrostClickGame extends GameBase {
     const elapsed = now - this.startTime - this.pausedAccum;
     const expectedTime = (this.nextSomniaIndex + 1) * this.SOMNIA_INTERVAL_MS;
     if (this.nextSomniaIndex < this.SOMNIA_TOTAL && elapsed >= expectedTime) {
-      this.createObject('somnia', 40 + Math.random() * 20);
+      this.createObject('somnia', 50 + Math.random() * 20);
       this.nextSomniaIndex++;
     }
 
     // Random spawns
     if (Math.random() < this.SPAWN_CHANCE_SNOW) {
-      this.createObject('snow', 70 + Math.random() * 40);
+      this.createObject('snow', 140 + Math.random() * 70);
     }
     if (Math.random() < this.SPAWN_CHANCE_BOMB) {
-      this.createObject('bomb', 80 + Math.random() * 50);
+      this.createObject('bomb', 160 + Math.random() * 90);
     }
     if (Math.random() < this.SPAWN_CHANCE_GIFT) {
-      this.createObject('gift', 60 + Math.random() * 40);
+      this.createObject('gift', 120 + Math.random() * 60);
     }
   }
 
   createObject(type, speed) {
     if (!this.isActive || this.isPaused) return;
     
+    // Удаляем только объекты за экраном, если достигнут лимит
     if (this.objects.length >= this.MAX_OBJECTS) {
-      this.objects.shift();
+      const maxY = this.canvas.height + this.SPRITE_SIZE;
+      // Ищем первый объект за экраном
+      for (let i = 0; i < this.objects.length; i++) {
+        if (this.objects[i].y > maxY) {
+          this.objects.splice(i, 1);
+          break;
+        }
+      }
+      // Если все объекты на экране, удаляем самый старый (первый)
+      if (this.objects.length >= this.MAX_OBJECTS) {
+        this.objects.shift();
+      }
     }
 
     const canvasWidth = this.canvas.width;
