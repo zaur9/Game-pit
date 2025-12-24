@@ -40,7 +40,6 @@ export class FrostClickGame extends GameBase {
     this.SPAWN_CHANCE_SNOW = 0.60;
     this.SPAWN_CHANCE_BOMB = 0.60;
     this.SPAWN_CHANCE_GIFT = 0.18;
-    this.SPAWN_CHANCE_ICE = 0.0033;
     
     // Object Pool для объектов
     this.objectPool = new ObjectPool(() => ({
@@ -97,8 +96,7 @@ export class FrostClickGame extends GameBase {
     this.needsRedrawUI = false;
     this.needsRedrawFreeze = false;
     
-    // Оптимизация кликов: кэш для сортировки объектов
-    this.objectsSortedCache = null;
+    // Оптимизация кликов
     this.lastClickTime = 0;
     this.CLICK_THROTTLE_MS = 16; // ~60 FPS для кликов
 
@@ -390,8 +388,10 @@ export class FrostClickGame extends GameBase {
   createFlash(x, y) {
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Ограничиваем количество flash эффектов
     if (this.flashEffects.length >= this.MAX_FLASH_EFFECTS) {
-      // Удаляем самый старый flash эффект
-      this.flashEffects.shift();
+      // Заменяем самый старый flash эффект (первый в массиве) вместо shift()
+      // swap-and-pop: перемещаем последний на место первого, затем pop
+      this.flashEffects[0] = this.flashEffects[this.flashEffects.length - 1];
+      this.flashEffects.pop();
     }
     this.flashEffects.push({ x, y, life: 250 });
     this.needsRedrawEffects = true;
