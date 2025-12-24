@@ -236,10 +236,9 @@ export class FrostClickRenderer {
     }
     
     // Фильтруем видимые объекты и распределяем по слоям
+    // После getActive() все объекты гарантированно активны (compact уже выполнен)
     for (let i = 0; i < objCount; i++) {
       const obj = objects[i];
-      if (!obj.active) continue;
-      
       const objY = obj.y;
       const objX = obj.x;
       
@@ -298,6 +297,7 @@ export class FrostClickRenderer {
     if (flashCount > 0 && this._effectSpritesLoaded) {
       this.game.ctx.save();
       const maxLife = 250;
+      const flashCanvasHalf = 80; // Canvas 160x160, центр в (80, 80)
       
       for (let i = 0; i < flashCount; i++) {
         const flash = this.game.flashEffects[i];
@@ -312,13 +312,14 @@ export class FrostClickRenderer {
               const flashY = flash.y;
               
               // Проверка видимости
-              if (flashX > -sprite.size && flashX < maxX + sprite.size &&
-                  flashY > -sprite.size && flashY < maxY + sprite.size) {
+              if (flashX > -flashCanvasHalf && flashX < maxX + flashCanvasHalf &&
+                  flashY > -flashCanvasHalf && flashY < maxY + flashCanvasHalf) {
                 this.game.ctx.globalAlpha = sprite.alpha;
+                // Центрируем canvas (160x160) относительно точки эффекта
                 this.game.ctx.drawImage(
                   sprite.canvas,
-                  flashX - sprite.size,
-                  flashY - sprite.size
+                  flashX - flashCanvasHalf,
+                  flashY - flashCanvasHalf
                 );
               }
             }
@@ -332,6 +333,7 @@ export class FrostClickRenderer {
     const explosionCount = this.game.explosionEffects.length;
     if (explosionCount > 0 && this._effectSpritesLoaded) {
       this.game.ctx.save();
+      const explosionCanvasHalf = 100; // Canvas 200x200, центр в (100, 100)
       
       for (let i = 0; i < explosionCount; i++) {
         const explosion = this.game.explosionEffects[i];
@@ -346,13 +348,14 @@ export class FrostClickRenderer {
               const expY = explosion.y;
               
               // Проверка видимости
-              if (expX > -sprite.size && expX < maxX + sprite.size &&
-                  expY > -sprite.size && expY < maxY + sprite.size) {
+              if (expX > -explosionCanvasHalf && expX < maxX + explosionCanvasHalf &&
+                  expY > -explosionCanvasHalf && expY < maxY + explosionCanvasHalf) {
                 this.game.ctx.globalAlpha = sprite.alpha * 0.8;
+                // Центрируем canvas (200x200) относительно точки эффекта
                 this.game.ctx.drawImage(
                   sprite.canvas,
-                  expX - sprite.size,
-                  expY - sprite.size
+                  expX - explosionCanvasHalf,
+                  expY - explosionCanvasHalf
                 );
               }
             }
