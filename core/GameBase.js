@@ -16,6 +16,7 @@ export class GameBase {
     this.container = null;
     this.gameLoopId = null;
     this.lastFrameTime = null;
+    this._initialized = false;
     
     // Статистика производительности
     this.stats = {
