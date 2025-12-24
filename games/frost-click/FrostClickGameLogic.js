@@ -19,16 +19,8 @@ export class FrostClickGameLogic {
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированный внутренний resolution canvas
     this.game.canvas = document.createElement('canvas');
     this.game.canvas.id = 'fc-canvas';
-    this.game.canvas.style.position = 'absolute';
-    this.game.canvas.style.top = '0';
-    this.game.canvas.style.left = '0';
-    this.game.canvas.style.width = '100%';
-    this.game.canvas.style.height = '100%';
-    this.game.canvas.style.zIndex = '1';
-    this.game.canvas.style.imageRendering = 'crisp-edges';
-    
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Используем реальные размеры экрана 1:1 (без масштабирования)
-    // Это устраняет проблемы с координатами клика и эффектов
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Canvas 1:1 с экраном БЕЗ CSS масштабирования
+    // Используем реальные размеры экрана
     const realWidth = window.innerWidth;
     const realHeight = window.innerHeight;
     
@@ -37,6 +29,16 @@ export class FrostClickGameLogic {
     this.game.canvas.height = realHeight;
     this.game.canvasBaseWidth = realWidth;
     this.game.canvasBaseHeight = realHeight;
+    
+    // CSS размеры ДОЛЖНЫ совпадать с реальными пикселями canvas
+    // Иначе координаты клика не будут соответствовать координатам рендера
+    this.game.canvas.style.position = 'absolute';
+    this.game.canvas.style.top = '0';
+    this.game.canvas.style.left = '0';
+    this.game.canvas.style.width = realWidth + 'px';  // Точные пиксели, не %
+    this.game.canvas.style.height = realHeight + 'px'; // Точные пиксели, не %
+    this.game.canvas.style.zIndex = '1';
+    this.game.canvas.style.imageRendering = 'crisp-edges';
     
     this.game.ctx = this.game.canvas.getContext('2d', {
       alpha: true,
@@ -164,8 +166,26 @@ export class FrostClickGameLogic {
     });
     this.game.container.appendChild(backBtn);
 
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Фиксированное разрешение - resize не нужен
-    // Canvas всегда одного размера, масштабируется через CSS
+    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Обработчик resize для 1:1 canvas
+    this._handleResize = () => {
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+      
+      this.game.canvas.width = newWidth;
+      this.game.canvas.height = newHeight;
+      this.game.canvas.style.width = newWidth + 'px';
+      this.game.canvas.style.height = newHeight + 'px';
+      this.game.canvasBaseWidth = newWidth;
+      this.game.canvasBaseHeight = newHeight;
+      
+      // Сбрасываем кэш rect для корректных координат клика
+      this._canvasRect = null;
+      
+      // Требуется перерисовка
+      this.game.needsRedrawObjects = true;
+      this.game.needsRedrawUI = true;
+    };
+    window.addEventListener('resize', this._handleResize);
 
     // Обновление текста кнопки Connect Wallet при изменении аккаунта
     this.updateConnectWalletButton();
@@ -271,10 +291,10 @@ export class FrostClickGameLogic {
     if (!this.game.isActive || this.game.isPaused) return;
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Object Pool - ограничиваем количество объектов
-    const activeCount = this.game.objectPool.getActiveCount();
-    if (activeCount >= this.game.MAX_OBJECTS_ON_SCREEN) {
+    // Используем getActive() один раз (он уже делает compact)
+    const objects = this.game.objectPool.getActive();
+    if (objects.length >= this.game.MAX_OBJECTS_ON_SCREEN) {
       // Удаляем самый старый объект (первый в массиве активных)
-      const objects = this.game.objectPool.getActive();
       if (objects.length > 0) {
         this.game.objectPool.release(objects[0]);
       }
@@ -323,10 +343,9 @@ export class FrostClickGameLogic {
     if (objCount === 0) return;
     
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Обратный цикл для проверки клика (сверху вниз)
+    // После getActive() все объекты гарантированно активны
     for (let i = objCount - 1; i >= 0; i--) {
       const obj = objects[i];
-      if (!obj.active) continue;
-      
       const halfSize = this.game.SPRITE_SIZE / 2;
       const hitPadding = this.game.HIT_PADDING;
       const objX = obj.x;
