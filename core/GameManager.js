@@ -118,7 +118,7 @@ export class GameManager {
     // Показываем контейнер игры
     if (this.gameContainer) {
       this.gameContainer.style.display = 'block';
-      // Очищаем контейнер
+      // Очищаем контейнер перед запуском (на случай повторного запуска)
       this.gameContainer.innerHTML = '';
     }
 
@@ -128,18 +128,13 @@ export class GameManager {
     // Инициализируем и запускаем новую игру
     this.currentGame = game;
     
-    // Если игра еще не инициализирована, инициализируем ее
-    if (!game.container || game.container !== this.gameContainer) {
-      game.init(this.gameContainer).then(() => {
-        game.start();
-      }).catch(error => {
-        // Возвращаемся в меню при ошибке
-        this.showMainMenu();
-      });
-    } else {
-      // Игра уже инициализирована, просто запускаем
+    // Всегда переинициализируем игру (контейнер был очищен)
+    game.init(this.gameContainer).then(() => {
       game.start();
-    }
+    }).catch(error => {
+      console.error('Error starting game:', error);
+      this.showMainMenu();
+    });
   }
 
   /**
@@ -162,9 +157,16 @@ export class GameManager {
     // Останавливаем снег
     this.stopSnow();
 
-    // Скрываем контейнер игры
+    // Скрываем и очищаем контейнер игры
     if (this.gameContainer) {
       this.gameContainer.style.display = 'none';
+      this.gameContainer.innerHTML = '';
+    }
+    
+    // Сбрасываем флаг инициализации у текущей игры
+    if (this.currentGame) {
+      this.currentGame._initialized = false;
+      this.currentGame.container = null;
     }
 
     // Показываем меню
