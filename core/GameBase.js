@@ -111,8 +111,14 @@ export class GameBase {
       this.lastFrameTime = timestamp;
     }
     
-    const deltaTime = (timestamp - this.lastFrameTime) / 1000; // в секундах
+    let deltaTime = (timestamp - this.lastFrameTime) / 1000; // в секундах
     this.lastFrameTime = timestamp;
+    
+    // КРИТИЧНО: Ограничиваем deltaTime чтобы избежать "прыжков" после alt+tab/pause
+    // Максимум 100ms (10 FPS минимум), иначе физика ломается
+    if (deltaTime > 0.1) {
+      deltaTime = 0.1;
+    }
     
     if (!this.isPaused) {
       this.update(deltaTime);
