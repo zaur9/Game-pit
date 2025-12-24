@@ -178,9 +178,6 @@ export class FrostClickGameLogic {
       this.game.canvasBaseWidth = newWidth;
       this.game.canvasBaseHeight = newHeight;
       
-      // Сбрасываем кэш rect для корректных координат клика
-      this._canvasRect = null;
-      
       // Требуется перерисовка
       this.game.needsRedrawObjects = true;
       this.game.needsRedrawUI = true;
@@ -326,16 +323,13 @@ export class FrostClickGameLogic {
     }
     this.game.lastClickTime = now;
 
-    // ИДЕАЛЬНАЯ АРХИТЕКТУРА: Canvas теперь 1:1 с экраном, координаты клика = координаты canvas
-    // Оптимизация: кэшируем getBoundingClientRect (дорогая операция)
-    if (!this._canvasRect || now - this._lastRectUpdate > 1000) {
-      this._canvasRect = this.game.canvas.getBoundingClientRect();
-      this._lastRectUpdate = now;
-    }
+    // Canvas 1:1 с экраном - координаты клика = координаты canvas
+    // Всегда получаем свежий rect для точности (getBoundingClientRect быстрый при статичном элементе)
+    const rect = this.game.canvas.getBoundingClientRect();
     
-    // Вычисляем координаты клика напрямую (canvas 1:1 с экраном)
-    const x = e.clientX - this._canvasRect.left;
-    const y = e.clientY - this._canvasRect.top;
+    // Вычисляем координаты клика напрямую
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     // ИДЕАЛЬНАЯ АРХИТЕКТУРА: БЕЗ сортировки - проверяем все объекты (рендерим по слоям)
     const objects = this.game.objectPool.getActive();
